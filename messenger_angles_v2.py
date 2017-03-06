@@ -21,6 +21,7 @@ import data_management as da
 import pickle
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+import copy
 
 def import_flare_list(instrument,filename='test.csv', ):
     '''reads in list of occulted flare positions and time intervals'''
@@ -116,59 +117,110 @@ def convert_goes2flux(goes_class):
         pass
     return flux
     
-def plot_goes_ratio(list_obj, title= "", ymax=3, labels=1):
+def plot_goes_ratio(list_obj, title= "",ymin=0, ymax=3, labels=1,ylog=False, goes=False,mgoes=False, scatter = False):
     '''make a plot of the GOEs ratio vs. angle'''
-    ang,mvals,rvals,delta,colors=[],[],[],[],[]
-    for angle, mval,rval in zip(list_obj.Angle,list_obj.Flare_properties["Messenger_GOES"],list_obj.Flare_properties["RHESSI_GOES"]):
+    ang,mvals,rvals,delta,colors,coordlabel,labelang,labelratio=[],[],[],[],[],[],[],[]
+    gc = list_obj.Flare_properties["RHESSI_GOES"]
+    mc=list_obj.Flare_properties["Messenger_GOES"]
+    ylabel='Messenger_GOES/RHESSI_GOES'
+    if goes:
+            mc = list_obj.Flare_properties["GOES_GOES"]
+            gc=list_obj.Flare_properties["RHESSI_GOES"]
+            ylabel='Calculated GOES/RHESSI_GOES'
+    if mgoes:
+            mc = list_obj.Flare_properties["Messenger_GOES"]
+            gc=list_obj.Flare_properties["GOES_GOES"]
+            ylabel='Messenger_GOES/Calculated_GOES'
+    for angle, mval,rval,chisq,ids,dts in zip(list_obj.Angle,mc,gc,list_obj.Notes,list_obj.ID,list_obj.Datetimes['Obs_start_time']):
         if type(rval) != float and len(rval) > 3:#:type(rval) != float : #or np.isnan(rval) == False:
-            ang.append(angle)
+            ang.append(angle)            
+            if rval.startswith('X'): colors.append('r')
+            elif rval.startswith('M'):colors.append('m')
+            elif rval.startswith('C'):colors.append('y')
+            elif rval.startswith('B'):colors.append('g')
+            elif rval.startswith('A'):colors.append('b')
+            else: colors.append('k')
             rf=convert_goes2flux(rval)
             mf=convert_goes2flux(mval)
             mvals.append(mf)
             rvals.append(rf)
-            delta.append(5000*10*2**np.rint(np.log10(np.abs(rf-mf)))) #difference in size between the GOES classes
-            col=np.rint(-np.log10(rf))
-            if col == 4: colors.append('r')
-            elif col == 5:colors.append('m')
-            elif col == 6:colors.append('y')
-            elif col == 7:colors.append('g')
-            elif col == 8:colors.append('b')
-            else: colors.append('k')
+            if rf != -1:
+                labelang.append(angle)
+                labelratio.append(mf/rf)
+                if labels==1:
+                    coordlabel.append(ids)
+                else: #0 or 2
+                    coordlabel.append(datetime.strftime(dts,'%D %H:%M'))
+            if scatter:
+                delta = 50
+            elif chisq == '':#notes column is empty
+                delta.append(5000*10*2**np.rint(np.log10(np.abs(rf-mf)))) #difference in size between the GOES classes
+            else: #notes carries chisq value
+                 delta.append(50*10*2**np.rint(np.log10(float(chisq))))
     ratio = np.array(mvals)/np.array(rvals)
     #print list_obj.Flare_properties["RHESSI_GOES"]
-    print delta
+    #print list_obj.Notes,delta
     #print colors
-    #print ratio
-    #ratio = ratio[ratio != 0.0]
-    #ratio = ratio[ratio > 0.0]
-    #print ratio
+    print sorted(ratio)
 
     fig = plt.figure()
     ax1 = fig.add_subplot(111)
     ax1.scatter(np.array(ang), ratio, s=delta, c=colors,alpha=.75)
     ax1.axhline(y=1,linestyle='dashed',color='k')
 
-    if labels == 1:
-        for x,y,t in zip(np.array(ang),ratio,list_obj.ID):
+    if labels != 0: 
+        for x,y,t in zip(np.array(labelang),labelratio,coordlabel):
             #print x,y,t
             ax1.annotate('%s' % t, xy=(x,y), textcoords='data')
         plt.grid()
-    
+
+   
     plt.xlabel('Angle between Earth and Mercury (degrees)')
-    plt.ylabel('Messenger_GOES/RHESSI_GOES')
-    #ax1.set_ylim([0,np.max(ratio)])
-    ax1.set_ylim([0,ymax])
+    plt.ylabel(ylabel)
+
+    if ylog:
+        ax1.set_yscale('log')
+    ax1.set_ylim([ymin,ymax])
     ax1.set_xlim([0,180])
     plt.title(title)
     X = mpatches.Patch(color='red', label='X')
     M = mpatches.Patch(color='magenta', label='M')
     C = mpatches.Patch(color='yellow', label='C')
     B = mpatches.Patch(color='green', label='B')
-    ax1.legend(handles=[X,M,C,B],loc='upper left',fontsize='medium')
+    A= mpatches.Patch(color='blue', label='A')
+    K= mpatches.Patch(color='black', label='>A')
+    ax1.legend(handles=[X,M,C,B,A,K],loc='upper left',fontsize='medium')
 
     ax1.plot()
 
     fig.show()
+    return ratio
+
+def hist_int_time_ratio(flare_list):
+    '''Make histogram to see if ratio depends on integration time'''
+    foo=foo
+    #do stuff with the datetimes
+    return ratio
+
+def select_outliers_lt90(flare_list, ratio,threshold=10.):
+    '''Select certain flares from the list to be examined in visually'''
+    indices=[]
+    newlist=copy.deepcopy(flare_list)
+    for i,flare in enumerate(flare_list.ID):
+        if np.abs(ratio[i]) > threshold and flare_list.Angle[i] < 90.:
+            indices.append(i)
+    newlist.slice(indices)    
+    return newlist
+
+def select_outliers_gt90(flare_list, ratio,threshold=10.):
+    '''Select certain flares from the list to be examined in visually'''
+    indices=[]
+    newlist=copy.deepcopy(flare_list)
+    for i,flare in enumerate(flare_list.ID):
+        if np.abs(ratio[i]) > threshold and flare_list.Angle[i] > 90.:
+            indices.append(i)
+    newlist.slice(indices)    
+    return newlist
     
 def filter_source_vis(flare_list, field='Y'):
     '''Select certain flares from the list to be examined in sswidl'''
@@ -180,6 +232,43 @@ def filter_source_vis(flare_list, field='Y'):
     flare_list.slice(indices)    
     return flare_list
 
+def two_thermals(flare_list_high,flare_list_low):
+    flare_list_2T=copy.deepcopy(flare_list_high)
+    fh=flare_list_high.Flare_properties
+    fl=flare_list_low.Flare_properties
+    for i,t1,t2,em1,em2 in zip(range(0,len(flare_list_low.ID)-1),fh['Messenger_T'],fl['Messenger_T'],fh['Messenger_EM1'],fl['Messenger_EM1']):
+        if np.isnan(t2) != 1 and t2 != -1: #if there was no solution, ignore the low-T component (this occurs more because of the EM though, and only in the goes_fluxes function)
+            flare_list_2T.Flare_properties['Messenger_T'][i]=t1+t2
+        else:
+            flare_list_2T.Flare_properties['Messenger_T'][i]=em1
+        if np.isnan(em2) != 1 and em2 != -1:        
+            flare_list_2T.Flare_properties['Messenger_EM1'][i]=em1+em2
+        else:
+            flare_list_2T.Flare_properties['Messenger_EM1'][i]=em1
+
+    return flare_list_2T #will need to go to IDL to calculate the goes flux... unless I translate that to Python but I'm lazy
+
+def download_messenger(flare_list):
+    '''Downloads Messenger .dat and .lbl files from the database, given event date. Can be used to get missing files too.'''
+    import urllib
+    dataurl = 'https://hesperia.gsfc.nasa.gov/messenger/'
+    #subfolders by year, month,day (except 2001)
+    listlen = len(flare_list.ID)
+    for i,dt in zip(range(0,listlen -1),flare_list.Datetimes['Messenger_datetimes']):
+        datestring=dt.strftime('%Y%j')
+        newurl=dataurl+datestring[0:4] #just the year
+        filename='/xrs'+datestring
+        datfile=filename+'.dat'
+        lblfile=filename+'.lbl'
+        #first check if the file is already there:
+        if not os.path.exists('/Users/wheatley/Documents/Solar/occulted_flares/data/dat_files/'+filename+'.dat'):
+            urllib.urlretrieve(newurl+datfile,'/Users/wheatley/Documents/Solar/occulted_flares/data/dat_files/'+filename+'.dat')
+        if not os.path.exists('/Users/wheatley/Documents/Solar/occulted_flares/data/dat_files/'+filename+'.lbl'):
+            urllib.urlretrieve(newurl+lblfile,'/Users/wheatley/Documents/Solar/occulted_flares/data/dat_files/'+filename+'.lbl')
+        #fill in the xrsfilename section
+        flare_list.Data_properties['XRS_files'][i]=filename
+    return flare_list
+        
 def do_quicklook(flare_list, download=False, opent=False):
     import webbrowser
     import urllib
