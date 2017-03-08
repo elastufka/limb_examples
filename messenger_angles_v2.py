@@ -97,27 +97,65 @@ def plot_angle_distribution(list_obj,ymax=10):
     fig.show()
 
 def convert_goes2flux(goes_class):
-    '''Converts Goes class to flux value'''
+    '''Converts Goes class to flux value, for either a single value or list of values'''
     flux = -1
-    try:
-        val = goes_class[0:1]
-        if goes_class.endswith('*'):
-            goes_class = goes_class[:-1]
-        if val == 'A':
-            flux = float(goes_class[1:])*10**-8
-        if val == 'B':
-            flux = float(goes_class[1:])*10**-7
-        if val == 'C':
-            flux = float(goes_class[1:])*10**-6
-        if val == 'M':
-            flux = float(goes_class[1:])*10**-5
-        if val == 'X':
-            flux = float(goes_class[1:])*10**-4   
-    except TypeError:
-        pass
+    if type(goes_class) == list:
+        flux=[]
+        for item in goes_class:
+            try:
+                val=item[0:1]
+                if item.endswith('*'):
+                    item = item[:-1]
+                if val == 'A':
+                    flux.append(float(item[1:])*10**-8)
+                if val == 'B':
+                    flux.append(float(item[1:])*10**-7)
+                if val == 'C':
+                    flux.append(float(item[1:])*10**-6)
+                if val == 'M':
+                    flux.append(float(item[1:])*10**-5)
+                if val == 'X':
+                    flux.append(float(item[1:])*10**-4)  
+            except TypeError:
+                pass
+    else:
+        try:
+            val = goes_class[0:1]
+            if goes_class.endswith('*'):
+                goes_class = goes_class[:-1]
+            if val == 'A':
+                flux = float(goes_class[1:])*10**-8
+            if val == 'B':
+                flux = float(goes_class[1:])*10**-7
+            if val == 'C':
+                flux = float(goes_class[1:])*10**-6
+            if val == 'M':
+                flux = float(goes_class[1:])*10**-5
+            if val == 'X':
+                flux = float(goes_class[1:])*10**-4   
+        except TypeError:
+            pass
     return flux
+
+def get_ratio(flare_list):
+    '''Get ratio of Messenger goes v actual goes'''
+    mvals,rvals=[],[]
+    mc = flare_list.Flare_properties["Messenger_GOES"]
+    gc=flare_list.Flare_properties["GOES_GOES"]
+    for mval,rval in zip(mc,gc):
+        if type(rval) != float and len(rval) > 3:#:type(rval) != float : #or np.isnan(rval) == False:          
+            rf=convert_goes2flux(rval)
+            mf=convert_goes2flux(mval)
+        else:
+            rf=-1
+            mf=0
+        mvals.append(mf)
+        rvals.append(rf)
+    ratio = np.array(mvals)/np.array(rvals)
+    return ratio
+   
     
-def plot_goes_ratio(list_obj, title= "",ymin=0, ymax=3, labels=1,ylog=False, goes=False,mgoes=False, scatter = False):
+def plot_goes_ratio(list_obj, title= "",ymin=0, ymax=3, labels=1,ylog=False, goes=False,mgoes=False, scatter = False,cc='GOES',save=False,show=True):
     '''make a plot of the GOEs ratio vs. angle'''
     ang,mvals,rvals,delta,colors,coordlabel,labelang,labelratio=[],[],[],[],[],[],[],[]
     gc = list_obj.Flare_properties["RHESSI_GOES"]
@@ -126,20 +164,29 @@ def plot_goes_ratio(list_obj, title= "",ymin=0, ymax=3, labels=1,ylog=False, goe
     if goes:
             mc = list_obj.Flare_properties["GOES_GOES"]
             gc=list_obj.Flare_properties["RHESSI_GOES"]
-            ylabel='Calculated GOES/RHESSI_GOES'
+            ylabel='Observed GOES/RHESSI_GOES'
     if mgoes:
             mc = list_obj.Flare_properties["Messenger_GOES"]
             gc=list_obj.Flare_properties["GOES_GOES"]
-            ylabel='Messenger_GOES/Calculated_GOES'
+            ylabel='Messenger_GOES/Observed_GOES'
     for angle, mval,rval,chisq,ids,dts in zip(list_obj.Angle,mc,gc,list_obj.Notes,list_obj.ID,list_obj.Datetimes['Obs_start_time']):
         if type(rval) != float and len(rval) > 3:#:type(rval) != float : #or np.isnan(rval) == False:
-            ang.append(angle)            
-            if rval.startswith('X'): colors.append('r')
-            elif rval.startswith('M'):colors.append('m')
-            elif rval.startswith('C'):colors.append('y')
-            elif rval.startswith('B'):colors.append('g')
-            elif rval.startswith('A'):colors.append('b')
-            else: colors.append('k')
+            ang.append(angle)
+            if cc=='GOES':
+                if rval.startswith('X'): colors.append('r')
+                elif rval.startswith('M'):colors.append('m')
+                elif rval.startswith('C'):colors.append('y')
+                elif rval.startswith('B'):colors.append('g')
+                elif rval.startswith('A'):colors.append('b')
+                else: colors.append('k')
+            else: #color code by other one
+                if mval.startswith('X'): colors.append('r')
+                elif mval.startswith('M'):colors.append('m')
+                elif mval.startswith('C'):colors.append('y')
+                elif mval.startswith('B'):colors.append('g')
+                elif mval.startswith('A'):colors.append('b')
+                else: colors.append('k')
+                
             rf=convert_goes2flux(rval)
             mf=convert_goes2flux(mval)
             mvals.append(mf)
@@ -158,10 +205,11 @@ def plot_goes_ratio(list_obj, title= "",ymin=0, ymax=3, labels=1,ylog=False, goe
             else: #notes carries chisq value
                  delta.append(50*10*2**np.rint(np.log10(float(chisq))))
     ratio = np.array(mvals)/np.array(rvals)
+    full_ratio = ratio #for now ...
     #print list_obj.Flare_properties["RHESSI_GOES"]
     #print list_obj.Notes,delta
     #print colors
-    print sorted(ratio)
+    #print sorted(ratio)
 
     fig = plt.figure()
     ax1 = fig.add_subplot(111)
@@ -192,15 +240,89 @@ def plot_goes_ratio(list_obj, title= "",ymin=0, ymax=3, labels=1,ylog=False, goe
     ax1.legend(handles=[X,M,C,B,A,K],loc='upper left',fontsize='medium')
 
     ax1.plot()
-
-    fig.show()
-    return ratio
+    if save:
+        plt.savefig(save)
+    if show:
+        fig.show()
+    return ratio,full_ratio
 
 def hist_int_time_ratio(flare_list):
     '''Make histogram to see if ratio depends on integration time'''
     foo=foo
     #do stuff with the datetimes
     return ratio
+
+def hist_ratio(flare_list,title='All flares',gc='all', save=False,show=True):
+    '''Make histogram to see distribution of ratios by goes class'''
+    ratio=get_ratio(flare_list)
+    ratio = ratio[np.where(ratio != -1)]
+    #print ratio
+    fig = plt.figure()
+    ax1 = fig.add_subplot(111)
+    goes=np.array(convert_goes2flux(flare_list.Flare_properties['GOES_GOES']))
+    #print goes
+    
+    if gc == 'all':
+        n, bins, patches = plt.hist(ratio, np.logspace(-3,3,12), facecolor='orange', alpha=0.75)
+    if gc == 'A':
+        gt,lt =np.where(goes > 10**-8),np.where(goes < 10**-7)
+        all=set(gt[0]) & set(lt[0])
+        ratio= ratio[list(all)]
+        n, bins, patches = plt.hist(ratio, np.logspace(-3,3,12), facecolor='blue', alpha=0.75)
+    if gc == 'B':
+        gt,lt =np.where(goes > 10**-7),np.where(goes < 10**-6)
+        all=set(gt[0]) & set(lt[0])
+        ratio= ratio[list(all)]
+        n, bins, patches = plt.hist(ratio,np.logspace(-3,3,12) , facecolor='green', alpha=0.75)
+    if gc == 'C':
+        gt,lt =np.where(goes > 10**-6),np.where(goes < 10**-5)
+        all=set(gt[0]) & set(lt[0])
+        ratio= ratio[list(all)]
+        n, bins, patches = plt.hist(ratio, np.logspace(-3,3,12), facecolor='yellow', alpha=0.75)
+    if gc == 'M':
+        gt,lt =np.where(goes > 10**-5),np.where(goes < 10**-4)
+        all=set(gt[0]) & set(lt[0])
+        ratio= ratio[list(all)]
+        n, bins, patches = plt.hist(ratio, np.logspace(-3,3,12), facecolor='magenta', alpha=0.75)
+    if gc == 'overlay':
+        gt,lt =np.where(goes > 10**-8),np.where(goes < 10**-7)
+        all=set(gt[0]) & set(lt[0])
+        ratioA= ratio[list(all)]
+        plt.hist(ratioA, np.logspace(-3,3,12), facecolor='blue', alpha=0.6)
+        gt,lt =np.where(goes > 10**-7),np.where(goes < 10**-6)
+        all=set(gt[0]) & set(lt[0])
+        ratioB= ratio[list(all)]
+        plt.hist(ratioB,np.logspace(-3,3,12) , facecolor='green', alpha=0.6)
+        gt,lt =np.where(goes > 10**-6),np.where(goes < 10**-5)
+        all=set(gt[0]) & set(lt[0])
+        ratioC= ratio[list(all)]
+        plt.hist(ratioC, np.logspace(-3,3,12), facecolor='yellow', alpha=0.6)
+        gt,lt =np.where(goes > 10**-5),np.where(goes < 10**-4)
+        all=set(gt[0]) & set(lt[0])
+        ratioM= ratio[list(all)]
+        plt.hist(ratioM, np.logspace(-3,3,12), facecolor='magenta', alpha=0.6)
+        
+        M = mpatches.Patch(color='magenta', label='M')
+        C = mpatches.Patch(color='yellow', label='C')
+        B = mpatches.Patch(color='green', label='B')
+        A= mpatches.Patch(color='blue', label='A')
+        ax1.legend(handles=[M,C,B,A],loc='upper left',fontsize='medium')
+        
+    
+    plt.xlabel('Ratio between Messenger GOES and actual GOES')
+    plt.ylabel('Number of Events')
+    plt.gca().set_xscale("log")
+    plt.title(title)
+    ax1.set_ylim([0,100])
+    #ax1.set_xlim([0,150])
+
+    ax1.plot()
+    if save:
+        plt.savefig(save)
+    if show:
+        fig.show()
+        
+    return goes
 
 def select_outliers_lt90(flare_list, ratio,threshold=10.):
     '''Select certain flares from the list to be examined in visually'''
@@ -221,6 +343,16 @@ def select_outliers_gt90(flare_list, ratio,threshold=10.):
             indices.append(i)
     newlist.slice(indices)    
     return newlist
+
+def select_outliers(flare_list, ratio, angle=90.,threshold=10.): #greater than given angle... need to fix bug/feature with ratio
+    '''Select certain flares from the list to be examined in visually'''
+    indices=[]
+    newlist=copy.deepcopy(flare_list)
+    for i,flare in enumerate(flare_list.ID):
+        if np.abs(ratio[i]) > threshold and flare_list.Angle[i] > angle:
+            indices.append(i)
+    newlist.slice(indices)    
+    return newlist
     
 def filter_source_vis(flare_list, field='Y'):
     '''Select certain flares from the list to be examined in sswidl'''
@@ -237,10 +369,16 @@ def two_thermals(flare_list_high,flare_list_low):
     fh=flare_list_high.Flare_properties
     fl=flare_list_low.Flare_properties
     for i,t1,t2,em1,em2 in zip(range(0,len(flare_list_low.ID)-1),fh['Messenger_T'],fl['Messenger_T'],fh['Messenger_EM1'],fl['Messenger_EM1']):
+        if (type(t2) and type(t1)) == str:
+            t2=float(t2)
+            t1=float(t1)
         if np.isnan(t2) != 1 and t2 != -1: #if there was no solution, ignore the low-T component (this occurs more because of the EM though, and only in the goes_fluxes function)
             flare_list_2T.Flare_properties['Messenger_T'][i]=t1+t2
         else:
             flare_list_2T.Flare_properties['Messenger_T'][i]=em1
+        if (type(em2) and type(em1)) == str:
+            em2=float(em2)
+            em1=float(em1)
         if np.isnan(em2) != 1 and em2 != -1:        
             flare_list_2T.Flare_properties['Messenger_EM1'][i]=em1+em2
         else:
@@ -317,39 +455,147 @@ def select_time_intervals(flare_list,before=10,after=10):
     time_intervals={'Mstart_time':Mstarttime,'Mend_time':Mendtime,'Rstart_time':Rstarttime,'Rend_time':Rendtime}
     flare_list.update(time_intervals) #adds these to the flare list dictionary
     return flare_list
+
+def make_plots(flist='full',wavelength='short',temp='1T',abund=True,type='scat',all=False):
+    '''Make selected plots cuz I'm lazy'''
+    os.chdir('/Users/wheatley/Documents/Solar/occulted_flares/flare_lists')
+    if flist == 'full': fliststr='all Messenger'
+    if flist == 'joint': fliststr='jointly observed'
+    if flist == 'vis': fliststr='visibly occulted'
     
-#if __name__ == "__main__":
-#    os.chdir('/Users/wheatley/Documents/Solar/occulted_flares/')
-    #occulted_list = import_flare_list('RHESSI', filename='list_filtered.csv') #make these into Data_Study objects now
-    #messenger_list = import_flare_list('Messenger',filename='messenger_list.csv') #make these into Data_Study objects now
-    #list_observed = is_flare_observed(occulted_list, messenger_list,cutoff=3600) #this will basically 'merge' the two objects
-    #list_observed.convert2idl('list_observed_obj.sav')
-    #list_observed.export2pickle('list_observed_obj.p')
-    #list_observed.export2csv('list_observed_obj.csv')
+    if not all:
+        filename=flist+'_'+wavelength+'_'+temp+'_abund.sav'
+        savename='../plots/'+flist+'_'+wavelength+'_'+temp+'_abund'
+        abundstr = ' with abundances'
+        if not abund:
+            filename=flist+'_'+wavelength+'_'+temp+'.sav'
+            abundstr=''
+            savename='../plots/'+flist+'_'+wavelength+'_'+temp
+        f=da.Data_Study(filename)
+        title='Ratio of Messenger GOES to observed GOES for '+ fliststr + ' flares,\n' + wavelength + ' channel flux, ' + temp + ' fit' + abundstr
+        if type =='scat':
+            foo=plot_goes_ratio(f,title=title, mgoes='goes',scatter=True,labels=0,ymin=0.001,ymax=1000,ylog=True,save=savename+'_scat.png')
+        elif type == 'scat2': 
+            foo=plot_goes_ratio(f,title=title, mgoes='goes',scatter=True,labels=0,ymin=0.001,ymax=1000,ylog=True,cc='M',save=savename+'_scat2.png')
+        else: #type = hist #need these elses to execute when 'all' also...
+            foo=hist_ratio(f,title=title, gc='overlay',save=savename+'_hist.png')
 
-    #flares=pickle.load(open('list_observed_obj.p','rb'))
-    #flares = da.Data_Study(filename='list_observed_goes.sav')
-    #foo=plot_goes_ratio(flares)
-    #flares.export2csv('list_observed_goes.csv')
+    else: #make all the plots
+        for fl in ['full','joint','vis']:
+            if fl == 'full': fliststr='all Messenger'
+            if fl == 'joint': fliststr='jointly observed'
+            if fl == 'vis': fliststr='visibly occulted'
+            
+            for wv in ['short','long']:
+                for t in ['1T','2T']:
+                   filename1=fl+'_'+wv+'_'+t+'_abund.sav'
+                   filename2=fl+'_'+wv+'_'+t+'.sav'
+                   savename1='../plots/'+fl+'_'+wv+'_'+t+'_abund'                  
+                   savename2='../plots/'+fl+'_'+wv+'_'+t
+                   try:
+                       f1=da.Data_Study(filename1)
+                   except IOError:
+                       print filename1 +' was not found!'
+                       continue
+                   try:
+                       f2=da.Data_Study(filename2)
+                   except IOError:
+                       print filename2 +' was not found!'
+                       continue
+                       
+                   title1='Ratio of Messenger GOES to observed GOES for '+ fliststr + ' flares,\n' + wavelength + ' channel flux, ' + temp + ' fit with abundances'
+                   title2='Ratio of Messenger GOES to observed GOES for '+ fliststr + ' flares,\n' + wavelength + ' channel flux, ' + temp + ' fit'
+                   foo=plot_goes_ratio(f1,title=title1, mgoes='goes',scatter=True,labels=0,ymin=0.001,ymax=1000,ylog=True,save=savename1+'_scat.png',show=False)
+                   foo=plot_goes_ratio(f1,title=title1, mgoes='goes',scatter=True,labels=0,ymin=0.001,ymax=1000,ylog=True,cc='M',save=savename1+'_scat2.png',show=False)
+                   foo=hist_ratio(f1,title=title1, gc='overlay',save=savename1+'_hist.png',show=False)
+              
+                   foo=plot_goes_ratio(f2,title=title2, mgoes='goes',scatter=True,labels=0,ymin=0.001,ymax=1000,ylog=True,save=savename2+'_scat.png',show=False)
+                   foo=plot_goes_ratio(f2,title=title2, mgoes='goes',scatter=True,labels=0,ymin=0.001,ymax=1000,ylog=True,cc='M',save=savename2+'_scat2.png',show=False)
+                   foo=hist_ratio(f2,title=title2, gc='overlay',save=savename2+'_hist.png',show=False)
 
-    #flares = da.Data_Study(filename='list_observed_vis.csv')
-    #new_list = filter_source_vis(flares)
-    #new_list= da.Data_Study(filename='list_short.csv')
-    #foo=plot_goes_ratio(flares, title='GOES ratio distribution for flares observed by both instruments',ymax=10)
-    #foo=plot_goes_ratio(new_list,title='GOES ratio distribution for flares with visible coronal source')
-    #new_list=pickle.load(open('list_short.p','rb'))
-    #foo=plot_goes_ratio(new_list,title='GOES ratio distribution for flares with visible coronal source')
-    #do_quicklook(new_list)
-    #open_in_RHESSI_browser(new_list, opent=True)
-    #list_selected=list_selected()
-    #time_intervals=select_time_intervals(list_selected)
-    #save_flare_list(time_intervals,'time_intervals.p')        
-    #save_flare_list_idl(time_intervals,'time_intervals.sav')
+    os.chdir('/Users/wheatley/Documents/Solar/MiSolFA/code/Occulted')
+        
+    #GOES ratio scatter plots for:
+    #entire messenger list, short wavelength, 1T
+    #entire messenger list, long wavelength, 1T
+    #entire messenger list, short wavelength, 2T
+    #entire messenger list, long wavelength, 2T
+    #entire messenger list, short wavelength, 1T, with abundances
+    #entire messenger list, long wavelength, 1T, with abundances
+    #entire messenger list, short wavelength, 2T, with abundances
+    #entire messenger list, long wavelength, 2T, with abundances
 
-    #mlist = import_flare_list('RHESSI', filename='list_matches.csv') #make these into Data_Study objects now
-    #messenger_list = import_flare_list('Messenger',filename='messenger_list.csv') #make these into Data_Study objects now
-    #list_observed = is_flare_observed(mlist, messenger_list,cutoff=3600) #this will basically 'merge' the two objects
-    #list_observed.convert2idl('list_matches_obj.sav')
-    #list_observed.export2pickle('list_matches_obj.p')
-    #list_observed.export2csv('list_matches_obj.csv')
+    #joint observed list, short wavelength, 1T
+    #joint observed list, long wavelength, 1T
+    #joint observed list, short wavelength, 2T
+    #joint observed list, long wavelength, 2T
+    #joint observed list, short wavelength, 1T, with abundances
+    #joint observed list, long wavelength, 1T, with abundances
+    #joint observed list, short wavelength, 2T, with abundances
+    #joint observed list, long wavelength, 2T, with abundances
+   
+    #visibly occulted list, short wavelength, 1T
+    #visibly occulted list, long wavelength, 1T
+    #visibly occulted list, short wavelength, 2T
+    #visibly occulted list, long wavelength, 2T
+    #visibly occulted list, short wavelength, 1T, with abundances
+    #visibly occulted list, long wavelength, 1T, with abundances
+    #visibly occulted list, short wavelength, 2T, with abundances
+    #visibly occulted list, long wavelength, 2T, with abundances
+   
+    #GOES ratio scatter plots, coloured by Messenger category, for:
+    #entire messenger list, short wavelength, 1T
+    #entire messenger list, long wavelength, 1T
+    #entire messenger list, short wavelength, 2T
+    #entire messenger list, long wavelength, 2T
+    #entire messenger list, short wavelength, 1T, with abundances
+    #entire messenger list, long wavelength, 1T, with abundances
+    #entire messenger list, short wavelength, 2T, with abundances
+    #entire messenger list, long wavelength, 2T, with abundances
 
+    #joint observed list, short wavelength, 1T
+    #joint observed list, long wavelength, 1T
+    #joint observed list, short wavelength, 2T
+    #joint observed list, long wavelength, 2T
+    #joint observed list, short wavelength, 1T, with abundances
+    #joint observed list, long wavelength, 1T, with abundances
+    #joint observed list, short wavelength, 2T, with abundances
+    #joint observed list, long wavelength, 2T, with abundances
+   
+    #visibly occulted list, short wavelength, 1T
+    #visibly occulted list, long wavelength, 1T
+    #visibly occulted list, short wavelength, 2T
+    #visibly occulted list, long wavelength, 2T
+    #visibly occulted list, short wavelength, 1T, with abundances
+    #visibly occulted list, long wavelength, 1T, with abundances
+    #visibly occulted list, short wavelength, 2T, with abundances
+    #visibly occulted list, long wavelength, 2T, with abundances
+
+    #GOES ratio histograms for:
+    #entire messenger list, short wavelength, 1T
+    #entire messenger list, long wavelength, 1T
+    #entire messenger list, short wavelength, 2T
+    #entire messenger list, long wavelength, 2T
+    #entire messenger list, short wavelength, 1T, with abundances
+    #entire messenger list, long wavelength, 1T, with abundances
+    #entire messenger list, short wavelength, 2T, with abundances
+    #entire messenger list, long wavelength, 2T, with abundances
+
+    #joint observed list, short wavelength, 1T
+    #joint observed list, long wavelength, 1T
+    #joint observed list, short wavelength, 2T
+    #joint observed list, long wavelength, 2T
+    #joint observed list, short wavelength, 1T, with abundances
+    #joint observed list, long wavelength, 1T, with abundances
+    #joint observed list, short wavelength, 2T, with abundances
+    #joint observed list, long wavelength, 2T, with abundances
+   
+    #visibly occulted list, short wavelength, 1T
+    #visibly occulted list, long wavelength, 1T
+    #visibly occulted list, short wavelength, 2T
+    #visibly occulted list, long wavelength, 2T
+    #visibly occulted list, short wavelength, 1T, with abundances
+    #visibly occulted list, long wavelength, 1T, with abundances
+    #visibly occulted list, short wavelength, 2T, with abundances
+    #visibly occulted list, long wavelength, 2T, with abundances
+    

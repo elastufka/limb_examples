@@ -37,14 +37,16 @@ function messenger_ospex, obj=o,time_interval= time_interval,erange = erange,mas
     if quiet eq 'True' then o->set,spex_autoplot_enable=0,spex_fit_progbar=0,spex_fitcomp_plot_resid=0 ;surpress the GUI
     ;endif
     o->dofit,/all
-    o->savefit,outfile=filename+'high.fits'
+    o->savefit,outfile=filename+'high_a.fits'
     o->set,spex_erange = [1.5,8.5] ;expand this for low energy fit
     o-> set, fit_comp_free_mask= [0,0,0,1,1,0] ;now fit low-energy compmonent
+    o-> set, fit_comp_free_mask= [0,0,0,1,1,1] ;fit abundances too
     o->dofit,/all
-    o->savefit,outfile=filename+'low.fits'
-    o-> set, fit_comp_free_mask= [1,1,0,1,1,0] ;now fit all
+    o->savefit,outfile=filename+'low_a.fits'
+    ;o-> set, fit_comp_free_mask= [1,1,0,1,1,0] ;now fit all
+    o-> set, fit_comp_free_mask= [1,1,1,1,1,1] ;let's fit the abundances too now
     o->dofit,/all
-    o->savefit,outfile=filename+'all.fits'
+    o->savefit,outfile=filename+'all_a.fits'
 end
 
 function get_GOES_sat_flux, time_interval, quiet=quiet, short=short ;time intervals are strings
@@ -93,7 +95,7 @@ function get_GOES_class,T,EM,sat=sat,channel=channel
 end
 
 function inspect_GOES, filename,index,flare_list,flare_list_high,flare_list_low,flare_list_all,channel=channel
-    enders=['high.fits','low.fits','all.fits']
+    enders=['high_a.fits','low_a.fits','all_a.fits']
     for j=0,2 do begin
         aa=spex_read_fit_results(filename+enders[j])
         infoarr = aa.spex_summ_params
@@ -134,7 +136,7 @@ pro goes_check,savename, channel=channel
     ;restore,'list_short_formatted.sav'
     restore, savename
     flare_list_high=flare_list ;make copies of the structure for modification
-    filenames=string(flare_list.id,format='(I)')
+    filenames=string(flare_list.id,format='(I)')+'a'
     len=size(filenames,/dim)
     goes_list=strarr(len[0])
     gc=goes_list
@@ -155,7 +157,7 @@ pro goes_check,savename, channel=channel
             ;;flare_list.datetimes.obs_start_time[i]=anytim(peak_time[0],/vms)
             ;;flare_list.datetimes.obs_end_time[i]=anytim(peak_time[1],/vms)
            if anytim(flare_times[i]) lt anytim('27-Jun-2009 22:51:00.000') then sat='13' else if flare_times[i] lt anytim('04-Mar-2010 23:57:00.000') then sat='14' else sat='15'
-            aa=spex_read_fit_results('../data/dat_files/'+strtrim(string(filenames[i]),1)+'high.fits')
+            aa=spex_read_fit_results('../data/dat_files/'+strtrim(string(filenames[i]),1)+'high_a.fits')
             infoarr = aa.spex_summ_params
             ;print, flare_list.flare_properties.messenger_T[i],flare_list.flare_properties.messenger_EM1[i]
             ;gc[i]=get_GOES_class(flare_list.flare_properties.messenger_T[i],flare_list.flare_properties.messenger_EM1[i],channel=channel,sat=sat)
@@ -244,14 +246,16 @@ pro do_ospex_fit, savename,outfilename,quiet=quiet,channel=channel
         ;print,flare_list_high.datetimes.messenger_datetimes[i],strmid(filenames[i],1,10)+'.dat'
         ;print,file_search(strmid(filenames[i],1,10)+'.dat'),strmid(filenames[i],1,10)+'.dat'
         if file_search(strmid(filenames[i],1,10)+'.dat') eq '' then continue ;if there's no data files, skip this iteration
-        ;if i eq 122 then begin                                                    ;time interval error on this one kills ospex
-        ;    flare_list_high.datetimes.obs_start_time[i]='07-Sep-2012 17:32:11'
-        ;    flare_list_high.datetimes.obs_end_time[i]='07-Sep-2012 17:32:11'
-        ;    flare_list_low.datetimes.obs_start_time[i]='07-Sep-2012 17:32:11'
-        ;    flare_list_low.datetimes.obs_end_time[i]='07-Sep-2012 17:32:11'
-        ;    flare_list_all.datetimes.obs_start_time[i]='07-Sep-2012 17:32:11'
-        ;    flare_list_all.datetimes.obs_end_time[i]='07-Sep-2012 17:32:11'
-         ;endif else begin
+        ;if i eq 122 then continue;begin                                                    ;time interval error on this one kills ospex
+            ;flare_list_high.datetimes.obs_start_time[i]='07-Sep-2012 17:32:11'
+            ;flare_list_high.datetimes.obs_end_time[i]='07-Sep-2012 17:32:11'
+            ;flare_list_low.datetimes.obs_start_time[i]='07-Sep-2012 17:32:11'
+            ;flare_list_low.datetimes.obs_end_time[i]='07-Sep-2012 17:32:11'
+            ;flare_list_all.datetimes.obs_start_time[i]='07-Sep-2012 17:32:11'
+                                ;flare_list_all.datetimes.obs_end_time[i]='07-Sep-2012
+                                ;17:32:11'
+           ;continue
+        ;endif else begin
         if flare_list_high.datetimes.obs_start_time[i] eq '' then begin
             o=ospex(/no_gui)
             o-> set, spex_specfile= strmid(filenames[i],1,10)+'.dat'
@@ -283,12 +287,15 @@ pro do_ospex_fit, savename,outfilename,quiet=quiet,channel=channel
         flare_list_low.datetimes.obs_end_time[i]=anytim(peak_time[1],/vms,/truncate)
         flare_list_all.datetimes.obs_start_time[i]=anytim(peak_time[0],/vms,/truncate)
         flare_list_all.datetimes.obs_end_time[i]=anytim(peak_time[1],/vms,/truncate)
-        if file_search(string((ids[i]),format='(I)')+'high.fits') eq '' then begin ;the fit should have been done already for this flare...
-            foo=messenger_ospex(obj=o,time_interval= [peak_time[0], peak_time[1]],erange = [2.3,8.5],mask=[1,1,0,0,0,0],comp_params=[1.0, 2.0, 1.0, 0.3, 0.3, 1.0],outfilename=string(ids[i],format='(I)'), quiet=quiet)
+        if file_search(strtrim(string((ids[i]),format='(I)'),1)+'ahigh_a.fits') eq '' then begin ;the fit should have been done already for this flare...
+        ;if file_search(string((ids[i]),format='(I)')+'ahigh_a.fits') eq '' then begin ;the fit should have been done already for this flare...
+            ;foo=messenger_ospex(obj=o,time_interval= [peak_time[0], peak_time[1]],erange = [2.3,8.5],mask=[1,1,0,0,0,0],comp_params=[1.0, 2.0, 1.0, 0.3, 0.3, 1.0],outfilename=string(ids[i],format='(I)'), quiet=quiet)
+           foo=messenger_ospex(obj=o,time_interval= [peak_time[0], peak_time[1]],erange = [2.3,8.5],mask=[1,1,1,0,0,0],comp_params=[1.0, 2.0, 1.0, 0.3, 0.3, 1.0],outfilename=string(ids[i],format='(I)')+'a', quiet=quiet)       ;fit abundance too now
         endif
         ;print,'LOOKING FOR ',string((ids[i]),format='(I)')+'high.fits',file_search(string((ids[i]),format='(I)')+'high.fits')
-        if file_search(string((ids[i]),format='(I)')+'high.fits') ne '' then begin
-           lists=inspect_GOES(strtrim(string(ids[i],format='(I)'),1),i,flare_list,flare_list_high,flare_list_low,flare_list_all,channel=channel)
+        if file_search(strtrim(string((ids[i]),format='(I)'),1)+'ahigh_a.fits') ne '' then begin
+        ;if file_search(string((ids[i]),format='(I)')+'ahigh_a.fits') ne '' then begin
+           lists=inspect_GOES(strtrim(string(ids[i],format='(I)'),1)+'a',i,flare_list,flare_list_high,flare_list_low,flare_list_all,channel=channel)
         endif else lists=[flare_list_high,flare_list_low,flare_list_all]
         goes_list[i]=get_goes_sat_flux([anytim(peak_time[0],/vms),anytim(peak_time[1],/vms)],quiet='True',short=channel)
     endfor
