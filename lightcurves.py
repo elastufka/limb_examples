@@ -32,51 +32,79 @@ def import_data(filename):
     Gdata=d['data']['gdata']
     return Rdata[0],Mdata[0],Gdata[0]
 
+def counts_ps(Mdata,n):
+    '''Adjust messenger data to counts/s'''
+    #get the time bin for each data point
+    tim=Mdata['taxis'][0][n]
+    mlen=Mdata['len'][0][n]
+    nflares=np.shape(Mdata['taxis'][0])[0]/2
+    Mtim,cps1,cps2=[],[],[]
+    for t in tim: Mtim.append(dt.strptime(t,'%d-%b-%Y %H:%M:%S.%f')) #fix messenger times to datetimes
+    M1=Mdata['phigh'][0][n][0:mlen-1]
+    M2=Mdata['phigh'][0][n+nflares-1][0:mlen-1]
+
+    for i in range(mlen-1):
+        tbin=Mtim[i+1]-Mtim[i] #timedelta object in seconds
+        cps1.append(M1[i]/tbin.total_seconds())
+        cps2.append(M2[i]/tbin.total_seconds())
+    return cps1,cps2
+
 def loop_GM(g,m):
     for n in range(0,26):
-        if n not in [2,8]:
+        try:
             foo=plot_GM(m,g,n)
+        except ValueError: #no data?
+            print n,m['taxis'][0][n][0]
+            continue
 
 def plot_GM(Mdata,Gdata,n): #will probably have to deal with times to make them all the same...
     import matplotlib.dates as mdates
     tim=Mdata['taxis'][0][n]
-    mlen=Mdata['len'][0][n]
+    mlen=Mdata['len'][0]#[n]
     nflares=np.shape(Mdata['taxis'][0])[0]/2 #assume 2 energy ranges for now
     Mtim=[]
     for t in tim: Mtim.append(dt.strptime(t,'%d-%b-%Y %H:%M:%S.%f')) #fix messenger times to datetimes
-
-    gtim=Gdata['taxis'][0][n]
-    glen=Gdata['len'][0][n]
+    cps1,cps2=counts_ps(Mdata,n)
+    print type(Mtim),np.shape(Mtim[:-1]),np.shape(cps1)
+    #print np.shape(cps1),np.shape(Mtim[0:mlen-1])
+    
+    gtim=Gdata['taxis'][0]#[n]
+    glen=Gdata['len'][0]#[n]
     Gtim=[]
     for t in gtim: Gtim.append(dt.strptime(t,'%d-%b-%Y %H:%M:%S.%f')) #fix GOES times to datetimes
-    glong=Gdata['ydata'][0][n,1,0:glen-1] #what's up with these data?
-    gshort=Gdata['ydata'][0][n,0,0:glen-1]    
+    glong=Gdata['ydata'][0][1,0:glen-1]#[n,1,0:glen-1] #what's up with these data?
+    gshort=Gdata['ydata'][0][0,0:glen-1]#[n,0,0:glen-1]    
 
     #plt.plot(Mtim[0:mlen-1],Mdata['phigh'][0][n][0:mlen-1],'b') #first energy channel
     #plt.plot(Mtim[0:mlen-1],Mdata['phigh'][0][n+nflares-1][0:mlen-1],'g') #second energy channel I think...check that this is plotting the right thing
     fig,ax1=plt.subplots()
     ax2=ax1.twinx()
-    l1,=ax1.step(Mtim[0:mlen-1],Mdata['phigh'][0][n][0:mlen-1],'b',label='1.5-12.4 keV') #first energy channel
-    l2,=ax1.step(Mtim[0:mlen-1],Mdata['phigh'][0][n+nflares-1][0:mlen-1],'g',label= '3-24.8 keV') #second energy channel I think...
+    #l1,=ax1.step(Mtim[0:mlen-1],Mdata['phigh'][0][n][0:mlen-1],'b',label='1.5-12.4 keV') #first energy channel
+    #l2,=ax1.step(Mtim[0:mlen-1],Mdata['phigh'][0][n+nflares-1][0:mlen-1],'g',label= '3-24.8 keV') #second energy channel I think...
+    #l1,=ax1.step(Mtim[0:mlen-1],cps1,'b',label='1.5-12.4 keV')
+    #l2,=ax1.step(Mtim[0:mlen-1],cps2,'g',label= '3-24.8 keV')
+    #l1,=ax1.step(Mtim[:-1],cps1,'b',label='1.5-12.4 keV')
+    l2,=ax1.step(Mtim[:-1],cps2,'g',label= '3-24.8 keV')
+    
     #plt.axis #add y-axis for GOES flux
-    l3,=ax2.plot(Gtim[0:glen-1],gshort,'k',label='GOES 1-8 $\AA$') #goes short - plot with
-    l4,=ax2.plot(Gtim[0:glen-1],glong,'m',label='GOES .5-4 $\AA$') #goes long
+    #l3,=ax2.plot(Gtim[0:glen-1],gshort,'k',label='GOES 1-8 $\AA$') #goes short - plot with
+    #l4,=ax2.plot(Gtim[0:glen-1],glong,'m',label='GOES .5-4 $\AA$') #goes long
     myFmt = mdates.DateFormatter('%H:%M')
     ax1.xaxis.set_major_formatter(myFmt)
     plt.gcf().autofmt_xdate()
     #ax1.set_xlabel(dt.strftime(Mtim[0].date(),'%Y-%b-%d'))
-    ax1.set_ylabel('Messenger counts $cm^{-2} keV^{-1}$')
-    ax1.set_ylim([10**3,10**7])
+    ax1.set_ylabel('Messenger counts $cm^{-2} keV^{-1} s^{-1}$')
+    ax1.set_ylim([10**0,10**4])
     ax1.set_yscale('log')
     ax2.set_ylabel('GOES Flux W$m^{-2}$')
     ax2.set_yscale('log')
     
     plt.title(dt.strftime(Mtim[0].date(),'%Y-%b-%d'))
     ax1.set_xlim([Gtim[0],Gtim[glen-1]])
-    print np.max(glong),np.max(gshort)
-    plt.legend((l1,l2,l3,l4),(l1.get_label(),l2.get_label(),l3.get_label(),l4.get_label()),loc='upper right')
+    #print np.max(glong),np.max(gshort)
+    #plt.legend((l1,l2,l3,l4),(l1.get_label(),l2.get_label(),l3.get_label(),l4.get_label()),loc='upper left',prop={'size':12})
     fig.show()
-    fname='plots/lightcurves/'+dt.strftime(Mtim[0].date(),'%Y-%b-%d')+'MG.png'
+    fname='data/lightcurves/'+dt.strftime(Mtim[0].date(),'%Y-%b-%d')+'MG.png'
     fig.savefig(fname)
     return glong,gshort
 
@@ -96,16 +124,12 @@ def plotR(Rdata,n):
         
     if np.mean(Rdata['rate'][0][n]) != 0.0:
         ax1.plot(Rtim,Rdata['rate'][0][n],'m',label='4-9 keV') #first energy channel
-        print Rdata['erange'][0][n],Rdata['UT'][0][n][0]
     if np.mean(Rdata['rate'][0][n+1]) != 0.0:
         ax1.plot(Rtim,Rdata['rate'][0][n+1],'g',label='12-18 keV') #second energy channel I think...
-        print Rdata['erange'][0][n+1],Rdata['UT'][0][n+1][0]
     if np.mean(Rdata['rate'][0][n+2]) != 0.0:
         ax1.plot(Rtim,Rdata['rate'][0][n+2],'c',label='18-30 keV') #etc
-        print Rdata['erange'][0][n+2],Rdata['UT'][0][n+2][0]
     if np.mean(Rdata['rate'][0][n+3]) != 0.0:
         ax1.plot(Rtim,Rdata['rate'][0][n+3],'k',label='30-80 keV') #etc
-        print Rdata['erange'][0][n+3],Rdata['UT'][0][n+3][0]
     #ax1.set_xlabel(dt.strftime(Rtim[0].date(),'%Y-%b-%d'))
     ax1.set_yscale('log')
     ax1.set_ylim([0,10**5])
@@ -115,125 +139,71 @@ def plotR(Rdata,n):
     plt.gcf().autofmt_xdate()
     plt.title(dt.strftime(Rtim[0].date(),'%Y-%b-%d'))
     #plt.show()
-    fname='plots/'+dt.strftime(Rtim[0].date(),'%Y-%b-%d')+'R.png'
+    fname='data/lightcurves/'+dt.strftime(Rtim[0].date(),'%Y-%b-%d')+'R.png'
     fig.savefig(fname)
     
 def loop_R(r):
     for n in range(0,26):
         foo=plotR(r,n)
-        
-def plot_goes_ratio(list_obj, title= "",ymin=0, ymax=3, labels=1,ylog=False, goes=False,mgoes=False, scatter = False,cc='GOES',save=False,show=True):
-    '''make a plot of the GOEs ratio vs. angle'''
-    ang,mvals,rvals,delta,colors,coordlabel,labelang,labelratio=[],[],[],[],[],[],[],[]
-    gc = list_obj.Flare_properties["RHESSI_GOES"]
-    mc=list_obj.Flare_properties["Messenger_GOES"]
-    ylabel='Messenger_GOES/RHESSI_GOES'
-    if goes:
-            mc = list_obj.Flare_properties["GOES_GOES"]
-            gc=list_obj.Flare_properties["RHESSI_GOES"]
-            ylabel='Observed GOES/RHESSI_GOES'
-    if mgoes:
-            mc = list_obj.Flare_properties["Messenger_GOES"]
-            gc=list_obj.Flare_properties["GOES_GOES"]
-            ylabel='Messenger_GOES/Observed_GOES'
-    for angle, mval,rval,chisq,ids,dts in zip(list_obj.Angle,mc,gc,list_obj.Notes,list_obj.ID,list_obj.Datetimes['Obs_start_time']):
+
+        #data,ebins=import_spectrogram('data/testspect.sav')
+def import_spectrogram(filename):
+    from scipy.io import readsav
+    #format everything so it's right
+    d=readsav(filename, python_dict=True)
+    #foo=np.zeros([23,450],dtype=str)
+    data={'UT':0.,'rate':0.,'erate':0.,'ltime':0.,'len':0.}
+    #for i,t in enumerate(d['data']['UT']):
+    #    j=0
+    #    if t[0] != '':
+    #        for tim in t:
+    #            foo[i,j]=tim#dt.strptime(tim,'%d-%b-%Y %H:%M:%S.000')
+    #            j=j+1
+    data['UT'] = d['data']['UT']
+    data['rate']=d['data']['rate']
+    data['erate']=d['data']['erate']
+    #ltime=np.zeros(np.shape(d['data']['ltime'])) #whatever side it's supposed to be
+    #for i,t in enumerate(data['UT']):
+    #    timedelt=data['UT'][i+1]-t
+    #data['ltime']=ltime #time offset from start
+    data['len']=d['data']['len']
+    ebins=d['ebins']
+    return data,ebins
+  
+def loop_spectrogram(data,ebins):
+    '''Plot spectrograms for all flares in flare list'''
+    nflares=np.shape(data['UT'])[0]
+    for i in range(0,nflares):
         try:
-            rval=float(rval)
-            mval=float(mval)
-            #ang.append(angle)
-            if cc=='GOES':
-                #print np.rint(-np.log10(rval))
-                if np.rint(-np.log10(rval)) <= 4.0:colors.append('r')
-                elif np.rint(-np.log10(rval)) == 5.0:colors.append('m')
-                elif np.rint(-np.log10(rval)) == 6.0:colors.append('y')
-                elif np.rint(-np.log10(rval)) == 7.0:colors.append('g')
-                elif np.rint(-np.log10(rval)) == 8.0:colors.append('b')
-                elif np.rint(-np.log10(rval)) == 9.0:colors.append('k')
-            else: #color code by other one
-                if np.rint(-np.log10(mval)) <= 4.0:colors.append('r')
-                elif np.rint(-np.log10(mval)) == 5.0:colors.append('m')
-                elif np.rint(-np.log10(mval)) == 6.0:colors.append('y')
-                elif np.rint(-np.log10(mval)) == 7.0:colors.append('g')
-                elif np.rint(-np.log10(mval)) == 8.0:colors.append('b')
-                elif np.rint(-np.log10(mval)) == 9.0:colors.append('k')
-            rf=rval                
-            mf=mval
+            a=sunpy_spectrogram(data,ebins,i)
         except ValueError:
-            if type(rval) != float and len(rval) > 3:#:type(rval) != float : #or np.isnan(rval) == False:
-                #ang.append(angle)
-                if cc=='GOES':
-                    if rval.startswith('X'): colors.append('r')
-                    elif rval.startswith('M'):colors.append('m')
-                    elif rval.startswith('C'):colors.append('y')
-                    elif rval.startswith('B'):colors.append('g')
-                    elif rval.startswith('A'):colors.append('b')
-                    else: colors.append('k')
-                else: #color code by other one
-                    if mval.startswith('X'): colors.append('r')
-                    elif mval.startswith('M'):colors.append('m')
-                    elif mval.startswith('C'):colors.append('y')
-                    elif mval.startswith('B'):colors.append('g')
-                    elif mval.startswith('A'):colors.append('b')
-                    else: colors.append('k')                
-            rf=convert_goes2flux(rval)
-            mf=convert_goes2flux(mval)
+            print dt.strptime(data['UT'][i][0],'%d-%b-%Y %H:%M:%S.000')
+            continue
 
-        mvals.append(mf)
-        rvals.append(rf)
-        ang.append(angle)
-        if rf != -1 and rf !=0.:
-            labelang.append(angle)
-            labelratio.append(mf/rf)
-            if labels==1:
-                coordlabel.append(ids)
-            else: #0 or 2
-                coordlabel.append(datetime.strftime(dts,'%D %H:%M'))
-        if scatter:
-              delta = 50
-        elif chisq == '':#notes column is empty
-            delta.append(5000*10*2**np.rint(np.log10(np.abs(rf-mf)))) #difference in size between the GOES classes
-        else: #notes carries chisq value
-            delta.append(50*10*2**np.rint(np.log10(float(chisq))))
+def sunpy_spectrogram(data,ebins,i):
+    #from sunpy.spectra import spectrogram as s
+    import mySpectrogram as s
+    eaxis=ebins[0:-1]
+    last=int(data['len'][0]-1)
+    time_axis=np.arange(0,last+1)*4.#data[0]['ltime'] #ndarray of time offsets,1D #need the 4 for RHESSI time interval
+    start= dt.strptime(data['UT'][i][0],'%d-%b-%Y %H:%M:%S.000') #datetime
+    try:
+        end= dt.strptime(data['UT'][i][last],'%d-%b-%Y %H:%M:%S.000') #datetime #might want to modify this to be where the data =0
+    except ValueError:
+        import datetime
+        end = start + datetime.timedelta(seconds=time_axis[-1])
+        #print dt.strptime(data['UT'][i][last-1],'%d-%b-%Y %H:%M:%S.000')
+    drate=np.transpose(np.log10(data['rate'][i][0:last+1])) #get rid of zeros before taking log10?
+    #drate=np.nan_to_num(drate)
+    drate[drate == -np.inf] = 0.0
+    for n,col in enumerate(drate.T):
+        if all([c ==0.0 for c in col]):
+            drate[:,n] = np.nan
+    a=s.Spectrogram(data=drate,time_axis=time_axis,freq_axis=eaxis,start=start,end=end,instruments=['RHESSI'],t_label='',f_label='Energy (keV)',c_label='log(counts/cm^2 s)')
+    fig=a.plot()
 
-    ratio = np.array(mvals)/np.array(rvals)
-    full_ratio = ratio #for now ...
-    #print list_obj.Flare_properties["RHESSI_GOES"]
-    #print list_obj.Notes,delta
-    #print colors
-    #print sorted(ratio)
-
-    fig = plt.figure()
-    ax1 = fig.add_subplot(111)
-    ax1.scatter(np.array(ang), ratio, s=delta, c=colors,alpha=.75)
-    ax1.axhline(y=1,linestyle='dashed',color='k')
-
-    if labels != 0: 
-        for x,y,t in zip(np.array(labelang),labelratio,coordlabel):
-            #print x,y,t
-            ax1.annotate('%s' % t, xy=(x,y), textcoords='data')
-        plt.grid()
-
-   
-    plt.xlabel('Angle between Earth and Mercury (degrees)')
-    plt.ylabel(ylabel)
-
-    if ylog:
-        ax1.set_yscale('log')
-    ax1.set_ylim([ymin,ymax])
-    ax1.set_xlim([0,180])
-    plt.title(title)
-    X = mpatches.Patch(color='red', label='X')
-    M = mpatches.Patch(color='magenta', label='M')
-    C = mpatches.Patch(color='yellow', label='C')
-    B = mpatches.Patch(color='green', label='B')
-    A= mpatches.Patch(color='blue', label='A')
-    K= mpatches.Patch(color='black', label='>A')
-    ax1.legend(handles=[X,M,C,B,A,K],loc='upper left',fontsize='medium')
-
-    ax1.plot()
-    if save:
-        plt.savefig(save)
-    if show:
-        fig.show()
-    return ratio,full_ratio
-
+    outfilename='data/spectrograms/'+s.get_day(a.start).strftime("%d%b%Y")+'sgram.png'
+    fig.figure.savefig(outfilename)
+    plt.clf()
+    return a
+    

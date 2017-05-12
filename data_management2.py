@@ -307,4 +307,100 @@ class Data_Study(object):
         pickle.dump(self, open(picklename, 'wb'))
 
 
+def download_messenger(self):
+    '''Downloads Messenger .dat and .lbl files from the database, given event date. Can be used to get missing files too.'''
+    import urllib
+    dataurl = 'https://hesperia.gsfc.nasa.gov/messenger/'
+    #subfolders by year, month,day (except 2001)
+    listlen = len(self.ID)
+    for i,dt in zip(range(0,listlen -1),self.Datetimes['Messenger_datetimes']):
+        datestring=dt.strftime('%Y%j')
+        newurl=dataurl+datestring[0:4] #just the year
+        filename='/xrs'+datestring
+        datfile=filename+'.dat'
+        lblfile=filename+'.lbl'
+        #first check if the file is already there:
+        if not os.path.exists('/Users/wheatley/Documents/Solar/occulted_flares/data/dat_files/'+filename+'.dat'):
+            urllib.urlretrieve(newurl+datfile,'/Users/wheatley/Documents/Solar/occulted_flares/data/dat_files/'+filename+'.dat')
+        if not os.path.exists('/Users/wheatley/Documents/Solar/occulted_flares/data/dat_files/'+filename+'.lbl'):
+            urllib.urlretrieve(newurl+lblfile,'/Users/wheatley/Documents/Solar/occulted_flares/data/dat_files/'+filename+'.lbl')
+        #fill in the xrsfilename section
+        if not self.Data_properties['XRS_files'][i]:
+            self.Data_properties['XRS_files'][i]=filename
 
+def open_in_RHESSI_browser(self, opent=False):
+    import webbrowser
+    browserurl = 'http://sprg.ssl.berkeley.edu/~tohban/browser/?show=grth1+qlpcr+qlpg9+qli02+qli03+qli04+synff&date=' #20120917&time=061500'
+    #subfolders by year, month,day (except 2001)
+    #warn if you're opening more than 20 tabs
+    if opent == True and len(self.ID) > 20:
+        ans = raw_input('You are about to open ' + str(len(self.ID)) + ' tabs! Are you sure?')
+        if ans != 'Y':
+            opent = False        
+    for i,dt in enumerate(self.Datetimes['Messenger_datetimes']):
+        try:
+            address=browserurl + dt.strftime('%Y%m%d') + '&time=' +dt.strftime('%H%M%S')
+        except AttributeError: #datetime for RHESSI is empty
+            address=browserurl + self.Datetimes['Messenger_datetimes'][i].strftime('%Y%m%d') + '&time=' +self.Datetimes['Messenger_datetimes'][i].strftime('%H%M%S')
+        if not self.Data_properties['RHESSI_browser_urls'][i]:
+            self.Data_properties['RHESSI_browser_urls'][i] = address
+        if opent:
+            webbrowser.open_new_tab(address)
+            
+def convert_goes2flux(goes_class):
+    '''Converts Goes class to flux value, for either a single value or list of values'''
+    flux = -1
+    if type(goes_class) == list:
+        flux=[]
+        for item in goes_class:
+            try:
+                val=item[0:1]
+                if item.endswith('*'):
+                    item = item[:-1]
+                if val == 'A':
+                    flux.append(float(item[1:])*10**-8)
+                if val == 'B':
+                    flux.append(float(item[1:])*10**-7)
+                if val == 'C':
+                    flux.append(float(item[1:])*10**-6)
+                if val == 'M':
+                    flux.append(float(item[1:])*10**-5)
+                if val == 'X':
+                    flux.append(float(item[1:])*10**-4)  
+            except TypeError:
+                pass
+    else:
+        try:
+            val = goes_class[0:1]
+            if goes_class.endswith('*'):
+                goes_class = goes_class[:-1]
+            if val == 'A':
+                flux = float(goes_class[1:])*10**-8
+            if val == 'B':
+                flux = float(goes_class[1:])*10**-7
+            if val == 'C':
+                flux = float(goes_class[1:])*10**-6
+            if val == 'M':
+                flux = float(goes_class[1:])*10**-5
+            if val == 'X':
+                flux = float(goes_class[1:])*10**-4   
+        except TypeError:
+            pass
+    return flux
+
+def get_ratio(self):
+    '''Get ratio of Messenger goes v actual goes'''
+    mvals,rvals=[],[]
+    mc = self.Flare_properties["Messenger_GOES"]
+    gc=self.Flare_properties["GOES_GOES"]
+    for mval,rval in zip(mc,gc):
+        if type(rval) != float and len(rval) > 3:#:type(rval) != float : #or np.isnan(rval) == False:          
+            rf=convert_goes2flux(rval)
+            mf=convert_goes2flux(mval)
+        else:
+            rf=-1
+            mf=0
+        mvals.append(mf)
+        rvals.append(rf)
+    ratio = np.array(mvals)/np.array(rvals)
+    return ratio

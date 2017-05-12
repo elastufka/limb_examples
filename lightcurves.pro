@@ -90,10 +90,11 @@ endfor
 
 function get_data,flare_list, Rbins=Rbins, Mbins=Mbins,export=filename, goes=goes,quiet=quiet
     llen = size(flare_list.id,/dimensions)
-    end_time=anytim(flare_list.datetimes.messenger_datetimes[0])+1200.
+    start_time=anytim(flare_list.datetimes.obs_start_time[0]);anytim(flare_list.datetimes.messenger_datetimes[0])-600.
+    end_time=anytim(flare_list.datetimes.obs_end_time[0]);anytim(flare_list.datetimes.messenger_datetimes[0])+1200.
     mask=flare_list.data_properties.good_det[0]
     mask_formatted=format_mask(mask)
-    ft = [flare_list.datetimes.messenger_datetimes[0],anytim(end_time,/vms)]
+    ft = [anytim(start_time,/vms),anytim(end_time,/vms)]
     if keyword_set(Rbins) eq 0 then Rbins = [[4,9],[12,18],[18,30],[30,80]]
     if keyword_set(Mbins) eq 0 then Mbins = [[1.55,12.4],[3.099,24.8]]    
     nbins=size(Rbins,/dimensions)
@@ -102,10 +103,11 @@ function get_data,flare_list, Rbins=Rbins, Mbins=Mbins,export=filename, goes=goe
     Rdata=replicate(newdrate,(nbins[1])*llen[0])
     k=0
     for i=0,llen[0]-1 do begin
-        end_time=anytim(flare_list.datetimes.messenger_datetimes[i])+1200.
+        start_time=anytim(flare_list.datetimes.obs_start_time[i]);anytim(flare_list.datetimes.messenger_datetimes[i])-600.
+        end_time=anytim(flare_list.datetimes.obs_end_time[i]);anytim(flare_list.datetimes.messenger_datetimes[i])+1200.
         mask=flare_list.data_properties.good_det[i]
-        ft = [flare_list.datetimes.messenger_datetimes[i],anytim(end_time,/vms)]        
-        for j=0,nbins[1]-1  do begin
+        ft = [anytim(start_time,/vms),anytim(end_time,/vms)]
+        for j=0,nbins[1]-1 do begin
            drate = one_curve_R(ft,[Rbins[0,j],Rbins[1,j]],sp_time_int=sp_time_int,mask=mask_formatted,quiet='quiet')
            newdrate={UT:drate.UT,rate:drate.rate,erate:drate.erate,ltime:drate.ltime,erange:strtrim(string(Rbins[0,j]),1)+'-'+strtrim(string(Rbins[1,j]),1)}
            Rdata[k] = newdrate
@@ -115,34 +117,40 @@ function get_data,flare_list, Rbins=Rbins, Mbins=Mbins,export=filename, goes=goe
     endfor
 
     nbins=size(Mbins,/dimensions)    
-    ;ft = [flare_list.datetimes.messenger_datetimes[0],anytim(end_time,/vms)]
-    ;Mdat = one_curve_M(ft,flare_list.data_properties.xrs_files[0],[Mbins[0,0],Mbins[1,0]],quiet=quiet)
-    ;; Mdat = {Taxis:dblarr(1000),phigh:fltarr(1000),len:1000L}
-    ;; Mdata=replicate(Mdat,(nbins[1]+1)*llen[0]) ;careful... what if these are different sizes?
-    ;; k=0
-    ;; for j=0,nbins[1]-1 do begin
-    ;;    for i=0,llen[0]-1 do begin
-    ;;       end_time=anytim(flare_list.datetimes.messenger_datetimes[i])+1200.
-    ;;       ft = [flare_list.datetimes.messenger_datetimes[i],anytim(end_time,/vms)]
-    ;;       print,ft,k
-    ;;       data = one_curve_M(ft,flare_list.data_properties.xrs_files[i],[Mbins[0,j],Mbins[1,j]],quiet=quiet)  
-    ;;       Mdata[k].taxis = data.taxis
-    ;;       Mdata[k].phigh = data.phigh
-    ;;       dlen= size(data.phigh,/dimensions)
-    ;;       Mdata[k].len = dlen[0]
-    ;;       k=k+1
-    ;;    endfor
-    ;;    k=k+1
-    ;; endfor
-    ;; ;data={Mdata:Mdata}
+    ft = [flare_list.datetimes.messenger_datetimes[0],anytim(end_time,/vms)]
+    Mdat = one_curve_M(ft,flare_list.data_properties.xrs_files[0],[Mbins[0,0],Mbins[1,0]],quiet=quiet)
+    Mdat = {Taxis:dblarr(1000),phigh:fltarr(1000),len:1000L}
+    Mdata=replicate(Mdat,(nbins[1]+1)*llen[0]) ;careful... what if these are different sizes?
+    k=0
+    for j=0,nbins[1]-1 do begin
+       for i=0,llen[0]-1 do begin
+          ;start_time=anytim(flare_list.datetimes.messenger_datetimes[i])-600.
+          ;end_time=anytim(flare_list.datetimes.messenger_datetimes[i])+1200.
+          start_time=anytim(flare_list.datetimes.obs_start_time[i]);anytim(flare_list.datetimes.messenger_datetimes[i])-600.
+          end_time=anytim(flare_list.datetimes.obs_end_time[i]);anytim(flare_list.datetimes.messenger_datetimes[i])+1200.
+          ft = [anytim(start_time,/vms),anytim(end_time,/vms)]
+          print,ft,k
+          data = one_curve_M(ft,flare_list.data_properties.xrs_files[i],[Mbins[0,j],Mbins[1,j]],quiet=quiet)  
+          Mdata[k].taxis = data.taxis
+          Mdata[k].phigh = data.phigh
+          dlen= size(data.phigh,/dimensions)
+          Mdata[k].len = dlen[0]
+          k=k+1
+       endfor
+       k=k+1
+    endfor
+    data={Rdata:Rdata,Mdata:Mdata}
    
     if keyword_set(goes) eq 1 then begin ;something is wrong with how this is getting proccessed!tarray is weird
         d={UTbase:'foo',tarray:dblarr(1000),Ydata:fltarr(1000,2),len:1000L}
         Gdata=replicate(d,llen)
        for i=0,llen[0]-1 do begin
           a=ogoes()
-          end_time=anytim(flare_list.datetimes.messenger_datetimes[i])+1200.
-          ft = [flare_list.datetimes.messenger_datetimes[i],anytim(end_time,/vms)]
+          start_time=anytim(flare_list.datetimes.obs_start_time[i]);anytim(flare_list.datetimes.messenger_datetimes[i])-600.
+          end_time=anytim(flare_list.datetimes.obs_end_time[i]);anytim(flare_list.datetimes.messenger_datetimes[i])+1200.
+          ;start_time=anytim(flare_list.datetimes.messenger_datetimes[i])-600.
+          ;end_time=anytim(flare_list.datetimes.messenger_datetimes[i])+1200.
+          ft = [anytim(start_time,/vms),anytim(end_time,/vms)]
           if anytim(ft[0]) lt anytim('27-Jun-2009 22:51:00.000') then sat='13' else if anytim(ft[0]) lt anytim('04-Mar-2010 23:57:00.000') then sat='14' else sat='15'
            a->set, tstart=ft[0],tend=ft[1],sat=sat
            d=a->getdata(/struct)
@@ -157,9 +165,9 @@ function get_data,flare_list, Rbins=Rbins, Mbins=Mbins,export=filename, goes=goe
        data={Rdata:Rdata,Mdata:Mdata,Gdata:Gdata}
        ;data={Gdata:Gdata}
     endif
-       data={Rdata:Rdata}
+       ;data={Rdata:Rdata}
     ;; if keyword_set(export) eq 1 then write_csv, filename,data ;,header=;tags of structure
-    save, data, filename='data/test_data.sav'
+    save, data, filename='data/lc_data.sav'
     return, data
  end
 
@@ -173,7 +181,7 @@ pro fix_times,data,filename
     nMtim = anytim(Mtim,/vms)
     nMdata={taxis:nMtim,phigh:data.mdata.phigh,len:data.mdata.len}
     
-    Gtim=data.gdata.taxis
+    Gtim=data.gdata.tarray
     Gdim = size(Gtim,/dim)
     ut=data.gdata.utbase
     for j=0,Gdim[1]-1 do for i=0,Gdim[0]-1 do Gtim[i,j] = Gtim[i,j] + anytim(ut[j])
@@ -182,6 +190,53 @@ pro fix_times,data,filename
     
     data={Rdata:nRdata,Mdata:nMdata,Gdata:nGdata}
     save, data, filename=filename
+ end
+
+function get_spectrogram, flare_times,ebins,sp_time_int=sp_time_int,mask=mask,quiet=quiet
+    o=hsi_spectrum()
+    o->set,obs_time_interval=[flare_times[0],flare_times[1]]
+    o -> set, sp_energy_binning=ebins
+    if keyword_set(sp_time_int) eq 0 then o -> set, sp_time_interval=4. else o -> set, sp_time_interval=sp_time_int
+    if keyword_set(mask) eq 0 then o -> set, seg_index_mask=[1, 0, 1, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0] else o->set,seg_index_mask=mask
+    o -> set, /decimation_correct, /rear_decimation_correct
+    drate = o-> getdata(sp_data_unit='rate', /sp_data_struct)   
+    if keyword_set(quiet) eq 0 then begin
+       ;loadct,13
+       ;o -> plotman, sp_data_unit='Flux'
+       o -> plot, /pl_spec, sp_data_unit='flux',/log_scale,/ylog,plotman_obj=p, desc='Unsmoothed spectrogram', xrange=[flare_times[0],flare_times[1]], yrange=[ebins[0],ebins[39]]
+    endif
+    obj_destroy,o
+    return, drate
+ end
+
+pro spectrograms,flare_list,filename,quiet=quiet
+    llen = size(flare_list.id,/dimensions)
+    ee=10^(2.*findgen(40)/40+alog10(3))
+    epairs=dindgen(40,2)
+    for j=0,38 do epairs[j,*]=[ee[j],ee[j+1]]
+    ebins=[epairs[0,*],epairs[1,*],epairs[2,*],epairs[3,*],epairs[4,*],epairs[5,*],epairs[6,*],epairs[7,*],epairs[8,*],epairs[9,*],epairs[10,*],epairs[11,*],epairs[12,*],epairs[13,*],epairs[14,*],epairs[15,*],epairs[16,*],epairs[17,*],epairs[18,*],epairs[19,*],epairs[20,*],epairs[21,*],epairs[22,*],epairs[23,*],epairs[24,*],epairs[25,*],epairs[26,*],epairs[27,*],epairs[28,*],epairs[29,*],epairs[30,*],epairs[31,*],epairs[32,*],epairs[33,*],epairs[34,*],epairs[35,*],epairs[36,*],epairs[37,*],epairs[38,*]] ;why is IDL so dumb
+    data={UT:strarr(675),rate:fltarr(39,675),erate:fltarr(39,675),ltime:fltarr(39,675),len:450L} ;need to re-format this for a more flexible format...
+    data=replicate(data,llen[0])
+    ;spect=dindgen()
+    
+    for i=0,llen[0]-1 do begin
+        start_time=anytim(flare_list.datetimes.obs_start_time[i]);anytim(flare_list.datetimes.messenger_datetimes[i])-600.
+        end_time=anytim(flare_list.datetimes.obs_end_time[i]);anytim(flare_list.datetimes.messenger_datetimes[i])+1200.
+        ;start_time=;anytim(flare_list.datetimes.messenger_datetimes[i])-600.
+        ;end_time=;anytim(flare_list.datetimes.messenger_datetimes[i])+1200.
+        mask=flare_list.data_properties.good_det[i]
+        mask_formatted=format_mask(mask)
+        ft = [anytim(start_time,/vms),anytim(end_time,/vms)]
+        aa=get_spectrogram(ft,ebins,mask=mask_formatted,quiet=quiet)
+        length=size(aa.rate,/dim)
+        data[i].UT[0:length[1]-1]=anytim(aa.UT[0],/vms) ;datetime string
+        print, data[i].UT[0],data[i].UT[length[1]-1]
+        data[i].rate[*,0:length[1]-1]=aa.rate
+        data[i].erate[*,0:length[1]-1]=aa.erate
+        data[i].ltime=string(anytim(aa.ltime[0],/vms)) ;fix this later...
+        data[i].len=length[1]
+    endfor
+    save, data, ebins, filename=filename
 end
     
 pro plot_together,data,quiet=quiet;plot RHESSI and Messenger lightcurves together
