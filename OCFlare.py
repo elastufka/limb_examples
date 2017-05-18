@@ -6,153 +6,69 @@
 #######################################
 
 import numpy as np
+import OCDatetimes as ocd
+import OCFiles as ocf
+import OCProperties as ocp
+import OCObservation as oco
+import OCCalc as occ
 
 class OCFlare(object):
-    ''' Dota for this study will have the following attributes:
+    ''' Object will have the following attributes:
             ID: RHESSI flare ID or generated ID
             Datetimes: OCDatetimes object (might inherit from OCData object)
             Files: OCFiles object that contains all information about file names and locations
-            Data: OCData object (different from original) that contains methods for loading/accessing the data
+            Data: OCData object (different from original) that contains methods for loading/accessing the data ->tag this onto Files?
             Properties: OCProperties object that contains all information about the flare itself
             Observation:OCObservation object that contains all information about the observations
             Calculations:OCCalc object that contains methods for and attributes of calculations
-            Plots: OCPlot object that contains methods for plotting
             Notes
         Methods will include:
             Method for translating between pickle, .sav and .csv
      '''
-    def __init__(self, filename=0, length=0):
-        '''Return an empty Data_Study object, unless a filename to a correctly formatted csv is given. Do I need to be able to go from a dictionary to an object too?'''
-        self.ID= [0]
-        self.Datetimes={"Messenger_datetimes":[''],"RHESSI_datetimes":[''],"Obs_start_time":[''],"Obs_end_time":['']}
-        self.Angle = [0.0]
-        self.Flare_properties={"Messenger_T":[0.0],"Messenger_EM1":[0.0], "Messenger_GOES":["A.0"],"RHESSI_GOES":["A.0"],"GOES_GOES":["A.0"],"source_vis":["Y"],"Messenger_total_counts":[0],"RHESSI_total_counts":[0],"Location":[0,0]}
-        self.Data_properties={"XRS_files":["xrs.dat"],"QL_images":["foo.png"],"Messenger_data_path":["/Users/wheatley/Documents/Solar/occulted_flares/data/dat_files"],"RHESSI_data_path":["/Users/wheatley/Documents/Solar/occulted_flares/data/"],"RHESSI_browser_urls":["http://sprg.ssl.berkeley.edu/~tohban/browser/?show=grth1+qlpcr+qlpg9+qli02+qli03+qli04+synff&date="],"csv_name":["foo.csv"],"good_det":[1,0,1,1,1,1,1,1,1]}
-        self.Notes= ["notes"]
+    def __init__(self, ID, legacy=True):
+        '''Initialize the flare object from an ID, pickle files in given folder, or legacy .csv or .sav'''
+        self.ID=ID
+        #first see if we can just restore the objects from pickles...
+        pickles=sorted(glob.glob(str(ID)+'*.p')):
+        if pickles:
+            for p in pickles:
+                if p == str(ID)+'.p':
+                    self=pickle.load(open(p,'rb')) #does this work? can test
+                    break
+                if p.endswith('OCDatetimes.p'):
+                    self.Datetimes=pickle.load(open(p,'rb'))
+                else:
+                    self.Datetimes=ocd.OCDatetimes(ID,legacy=legacy)
+                if p.endswith('OCProperties.p'):
+                    self.Properties=pickle.load(open(p,'rb'))
+                else:
+                    self.Properties=ocp.OCProperties(ID,legacy=legacy)
+                if p.endswith('OCFiles.p'):
+                    self.Files=pickle.load(open(p,'rb'))
+                else:
+                    self.Files=ocf.OCFiles(ID,legacy=legacy)
+                 if p.endswith('OCObservations.p'):
+                    self.Observations=pickle.load(open(p,'rb'))
+                else:
+                    self.Observations=oco.OCObservations(ID,legacy=legacy)
+                if p.endswith('OCCalc.p'):
+                    self.CCalc=pickle.load(open(p,'rb'))
+                else:
+                    self.CCalcDatetime=occ.OCCalc(ID,legacy=legacy)
+                               
+        else:
+            self.Datetimes=ocd.OCDatetimes(ID,legacy=legacy)
+            self.Properties=ocp.OCProperties(ID,legacy=legacy)
+            self.Files=ocf.OCFiles(ID,legacy=legacy)
+            self.Observation=oco.OCObservation(ID,legacy=legacy)
+            self.Calc=occ.OCCalc(ID,legacy=legacy)
+            self.Notes= [""]
         
-        if length != 0:
-            zerov = np.zeros(length, float)
-            zerovs = np.zeros(length, str)
-            self.ID = zerov
-            self.Datetimes={"Messenger_datetimes":zerov,"RHESSI_datetimes":zerov,"Obs_start_time":zerov,"Obs_end_time":zerov}
-            self.Angle = zerov
-            self.Flare_properties={"Messenger_T":zerov,"Messenger_EM1":zerov, "Messenger_GOES":zerovs,"RHESSI_GOES":zerovs,"GOES_GOES":zerovs,"source_vis":zerovs,"Messenger_total_counts":zerov,"RHESSI_total_counts":zerov,"Location":zerov}
-            self.Data_properties={"XRS_files":zerovs,"QL_images":zerovs,"Messenger_data_path":np.repeat("/Users/wheatley/Documents/Solar/occulted_flares/data/dat_files",length),"RHESSI_data_path":np.repeat("/Users/wheatley/Documents/Solar/occulted_flares/data/",length),"RHESSI_browser_urls":zerovs,"csv_name":zerovs,"good_det":zerovs}
-            self.Notes= zerovs       
-        
-        if filename != 0:
-            if filename.endswith('csv'):
-                import pandas as pd
-                data=pd.read_csv(filename,sep=',', header=0) #column 0 will be NaN because it's text
-                self.ID = data['ID']
-                self.Datetimes={"Messenger_datetimes":data["Messenger_datetimes"],"RHESSI_datetimes":data["RHESSI_datetimes"],"Obs_start_time":data["Obs_start_time"],"Obs_end_time":data["Obs_end_time"]} #might need to convert these all to datetime format. There will be different formats depending on the csv!
-                self.format_datetimes()
-                self.Angle = data['Angle']
-                self.Flare_properties={"Messenger_T":data["Messenger_T"],"Messenger_EM1":data["Messenger_EM1"], "Messenger_GOES":data["Messenger_GOES"],"RHESSI_GOES":data["RHESSI_GOES"],"GOES_GOES":data["GOES_GOES"],"source_vis":data["source_vis"],"Messenger_total_counts":data["Messenger_total_counts"],"RHESSI_total_counts":data["RHESSI_total_counts"],"Location":data["Location"]}
-                self.Data_properties={"XRS_files":data["XRS_files"],"QL_images":data["QL_images"],"Messenger_data_path":data["Messenger_data_path"],"RHESSI_data_path":data["RHESSI_data_path"],"RHESSI_browser_urls":data["RHESSI_browser_urls"],"csv_name":data["csv_name"],"good_det":data["good_det"]}
-                self.Notes= data["Notes"]
-            elif filename.endswith('sav'):
-                from scipy.io import readsav
-                #format everything so it's right
-                data=readsav(filename, python_dict=True)
-                data=data['flare_list']
-                self.ID = data['ID'][0].tolist()
-                self.Datetimes['Messenger_datetimes']=data['datetimes'][0]['messenger_datetimes'][0].tolist()
-                self.Datetimes['RHESSI_datetimes']=   data['datetimes'][0]['rhessi_datetimes'][0].tolist()
-                self.Datetimes['Obs_start_time']=     data['datetimes'][0]['obs_start_time'][0].tolist()
-                self.Datetimes['Obs_end_time']=       data['datetimes'][0]['obs_end_time'][0].tolist()
-                self.Angle = data['angle'][0].tolist()
-                self.Flare_properties["Messenger_T"]=   data['flare_properties'][0]["messenger_t"][0].tolist()
-                self.Flare_properties["Messenger_EM1"]= data['flare_properties'][0]["messenger_em1"][0].tolist()
-                self.Flare_properties["Messenger_GOES"]=data['flare_properties'][0]["messenger_goes"][0].tolist()
-                self.Flare_properties["RHESSI_GOES"]=   data['flare_properties'][0]["RHESSI_GOES"][0].tolist()
-                self.Flare_properties["GOES_GOES"]=   data['flare_properties'][0]["GOES_GOES"][0].tolist()
-                self.Flare_properties["source_vis"]=    data['flare_properties'][0]["source_vis"][0].tolist()       
-                self.Flare_properties["Messenger_total_counts"]=data['flare_properties'][0]["messenger_total_counts"][0].tolist()
-                self.Flare_properties["RHESSI_total_counts"]=data['flare_properties'][0]["rhessi_total_counts"][0].tolist()
-                self.Flare_properties["Location"]=data['flare_properties'][0]["location"][0].tolist()
-                self.Data_properties["XRS_files"]=data['data_properties'][0]["xrs_files"][0].tolist()
-                self.Data_properties["QL_images"]=data['data_properties'][0]["ql_images"][0].tolist()
-                self.Data_properties["Messenger_data_path"]=data['data_properties'][0]["messenger_data_path"][0].tolist()
-                self.Data_properties["RHESSI_data_path"]=data['data_properties'][0]["rhessi_data_path"][0].tolist()
-                self.Data_properties["RHESSI_browser_urls"]=data['data_properties'][0]["rhessi_browser_urls"][0].tolist()
-                self.Data_properties["csv_name"]=data['data_properties'][0]["csv_name"][0].tolist()
-                self.Data_properties["good_det"]=data['data_properties'][0]["good_det"][0].tolist()
-                self.Notes= data["notes"][0].tolist()
-                self.format_datetimes()
                 
     def __iter__(self):
         '''Returns a generator that iterates over the object'''
         for attr, value in self.__dict__.iteritems():
             yield attr, value
-
-    def slice(self, indices):
-        for n,i in enumerate(indices):
-            self.ID[n]=self.ID[i]
-            self.Angle[n]=self.Angle[i]
-            self.Notes[n]=self.Notes[i]
-            for key in self.Datetimes.keys():
-                #print key,type(key),i
-                self.Datetimes[key][n] = self.Datetimes[key][i]
-            for key in self.Flare_properties.keys():
-                self.Flare_properties[key][n] = self.Flare_properties[key][i]
-            for key in self.Data_properties.keys():
-                self.Data_properties[key][n] = self.Data_properties[key][i]
-        self.ID = self.ID[0:n-1]
-        self.Angle=self.Angle[0:n-1]
-        self.Notes=self.Notes[0:n-1]
-        for key in self.Datetimes.keys():
-            self.Datetimes[key]= self.Datetimes[key][0:n-1]
-        for key in self.Flare_properties.keys():
-            self.Flare_properties[key]= self.Flare_properties[key][0:n-1]
-        for key in self.Data_properties.keys():
-            self.Data_properties[key]= self.Data_properties[key][0:n-1]
-            
-    def format_datetimes(self):
-        '''Move the datetimes in the self.Datetimes dictionary between formats. This assumes that the datetime is stored in a STRING not a datetime - as it will be when reading from a .csv or .sav file. If it is a datetime, format it for output to csv'''
-        from datetime import datetime as dt
-        import re
-        data = self.Datetimes
-        for key in data.keys():
-            newdata = []
-            if type(data[key][0]) == dt:
-                for d in data[key]:
-                    newdata.append(d.strftime('%d-%b-%Y %H:%M:%S.000'))
-            else:
-                try: #it is a string
-                    if data[key][0] == '':
-                        newdata=data[key]
-                        fc=''
-                        #for i in range(0,len(data['RHESSI_datetimes'])-1):
-                        #   newdata.append('')
-                        #continue
-                    elif ('AM' or 'PM') in data[key][0]:
-                        fc = '%m/%d/%y %I:%M:%S %p'
-                    elif '/' in data[key][0]:
-                        fc = '%m/%d/%y %H:%M:%S.00'
-                    elif re.search('[a-z]', data[key][0]) is not None: #not None if there is a letter
-                        fc ='%d-%b-%Y %H:%M:%S' #current format code - might need to add .000
-                    else: #it's come straight from idl ....
-                        fc ='%Y-%m-%d %H:%M:%S'
-                    if fc != '':
-                       for string in data[key]:
-                           if string.startswith("'"):
-                               try:
-                                   newdata.append(dt.strptime(string[1:-1], fc))
-                               except ValueError:
-                                   fc=fc ='%d-%b-%Y %H:%M:%S.000'
-                                   newdata.append(dt.strptime(string[1:-1], fc))
-                           else:
-                               try:
-                                   newdata.append(dt.strptime(string, fc))
-                               except ValueError:
-                                   fc=fc ='%d-%b-%Y %H:%M:%S.000'
-                                   newdata.append(dt.strptime(string, fc))
-                except TypeError: #if nothing in there - let's change things to empty strings for now so that IDL plays nice
-                    for i in range(0,len(data['RHESSI_datetimes'])-1):
-                        newdata.append('')
-            self.Datetimes[key] = newdata
-            #print key, newdata[0:10]
                     
     def export2csv(self, filename):
         '''Exports Python dictionary to csv file'''
@@ -231,100 +147,3 @@ class OCFlare(object):
         pickle.dump(self, open(picklename, 'wb'))
 
 
-def download_messenger(self):
-    '''Downloads Messenger .dat and .lbl files from the database, given event date. Can be used to get missing files too.'''
-    import urllib
-    dataurl = 'https://hesperia.gsfc.nasa.gov/messenger/'
-    #subfolders by year, month,day (except 2001)
-    listlen = len(self.ID)
-    for i,dt in zip(range(0,listlen -1),self.Datetimes['Messenger_datetimes']):
-        datestring=dt.strftime('%Y%j')
-        newurl=dataurl+datestring[0:4] #just the year
-        filename='/xrs'+datestring
-        datfile=filename+'.dat'
-        lblfile=filename+'.lbl'
-        #first check if the file is already there:
-        if not os.path.exists('/Users/wheatley/Documents/Solar/occulted_flares/data/dat_files/'+filename+'.dat'):
-            urllib.urlretrieve(newurl+datfile,'/Users/wheatley/Documents/Solar/occulted_flares/data/dat_files/'+filename+'.dat')
-        if not os.path.exists('/Users/wheatley/Documents/Solar/occulted_flares/data/dat_files/'+filename+'.lbl'):
-            urllib.urlretrieve(newurl+lblfile,'/Users/wheatley/Documents/Solar/occulted_flares/data/dat_files/'+filename+'.lbl')
-        #fill in the xrsfilename section
-        if not self.Data_properties['XRS_files'][i]:
-            self.Data_properties['XRS_files'][i]=filename
-
-def open_in_RHESSI_browser(self, opent=False):
-    import webbrowser
-    browserurl = 'http://sprg.ssl.berkeley.edu/~tohban/browser/?show=grth1+qlpcr+qlpg9+qli02+qli03+qli04+synff&date=' #20120917&time=061500'
-    #subfolders by year, month,day (except 2001)
-    #warn if you're opening more than 20 tabs
-    if opent == True and len(self.ID) > 20:
-        ans = raw_input('You are about to open ' + str(len(self.ID)) + ' tabs! Are you sure?')
-        if ans != 'Y':
-            opent = False        
-    for i,dt in enumerate(self.Datetimes['Messenger_datetimes']):
-        try:
-            address=browserurl + dt.strftime('%Y%m%d') + '&time=' +dt.strftime('%H%M%S')
-        except AttributeError: #datetime for RHESSI is empty
-            address=browserurl + self.Datetimes['Messenger_datetimes'][i].strftime('%Y%m%d') + '&time=' +self.Datetimes['Messenger_datetimes'][i].strftime('%H%M%S')
-        if not self.Data_properties['RHESSI_browser_urls'][i]:
-            self.Data_properties['RHESSI_browser_urls'][i] = address
-        if opent:
-            webbrowser.open_new_tab(address)
-            
-def convert_goes2flux(goes_class):
-    '''Converts Goes class to flux value, for either a single value or list of values'''
-    flux = -1
-    if type(goes_class) == list:
-        flux=[]
-        for item in goes_class:
-            try:
-                val=item[0:1]
-                if item.endswith('*'):
-                    item = item[:-1]
-                if val == 'A':
-                    flux.append(float(item[1:])*10**-8)
-                if val == 'B':
-                    flux.append(float(item[1:])*10**-7)
-                if val == 'C':
-                    flux.append(float(item[1:])*10**-6)
-                if val == 'M':
-                    flux.append(float(item[1:])*10**-5)
-                if val == 'X':
-                    flux.append(float(item[1:])*10**-4)  
-            except TypeError:
-                pass
-    else:
-        try:
-            val = goes_class[0:1]
-            if goes_class.endswith('*'):
-                goes_class = goes_class[:-1]
-            if val == 'A':
-                flux = float(goes_class[1:])*10**-8
-            if val == 'B':
-                flux = float(goes_class[1:])*10**-7
-            if val == 'C':
-                flux = float(goes_class[1:])*10**-6
-            if val == 'M':
-                flux = float(goes_class[1:])*10**-5
-            if val == 'X':
-                flux = float(goes_class[1:])*10**-4   
-        except TypeError:
-            pass
-    return flux
-
-def get_ratio(self):
-    '''Get ratio of Messenger goes v actual goes'''
-    mvals,rvals=[],[]
-    mc = self.Flare_properties["Messenger_GOES"]
-    gc=self.Flare_properties["GOES_GOES"]
-    for mval,rval in zip(mc,gc):
-        if type(rval) != float and len(rval) > 3:#:type(rval) != float : #or np.isnan(rval) == False:          
-            rf=convert_goes2flux(rval)
-            mf=convert_goes2flux(mval)
-        else:
-            rf=-1
-            mf=0
-        mvals.append(mf)
-        rvals.append(rf)
-    ratio = np.array(mvals)/np.array(rvals)
-    return ratio

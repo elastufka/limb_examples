@@ -63,7 +63,7 @@ class OCDatetimes(object):
         if not legacy:
             #read datetimes csv file (can just restore the pickle file otherwise. Build this into OCFlare class):
             if not filename:
-                filename= '/Users/wheatley/Documents/Solar/occulted_flares/flare_lists/OCDatetimes.csv'#default file to read
+                filename= '/Users/wheatley/Documents/Solar/occulted_flares/flare_lists/'+str(ID)+'OCDatetimes.csv'#default file to read
             import pandas as pd
             data=pd.read_csv(filename,sep=',', header=0) #column 0 will be NaN because it's text
             i=self.get_index(ID,data) #get the index of the flare if it's in a list
@@ -91,6 +91,14 @@ class OCDatetimes(object):
         if not picklename:
             picklename=str(self.ID)+'OCDatetimes.p'
         pickle.dump(self, open(picklename, 'wb'))
+
+    def write_csv(self, csvname=False):
+        if not csvname: csvname= str(ID) + 'OCDatetimes.csv'
+        d=self.__dict__
+        with open(csvname,'wb') as f:
+            w=csv.writer(f)
+            w.writerow(d.keys())
+            w.writerow(d.values())
 
     def get_index(self,ID,data):
         '''Write object to pickle'''
