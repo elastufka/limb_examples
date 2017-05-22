@@ -27,7 +27,7 @@ class OCDatetimes(object):
             format_datetimes() to format for reading from/exporting to csv/sav
             extend_time_int() does the time interval extensions
             '''
-    def __init__(self, ID,legacy=True,filename=False):
+    def __init__(self, ID,legacy=True,filename=False, calc_times=False):
         '''Initialize the object, given the flare ID. This requires use of the OCFiles object I think...'''
         if legacy: #get info from legacy OCData object and the associated csv/sav files
             if not filename:
@@ -59,11 +59,11 @@ class OCDatetimes(object):
                 self.pf_loop_time=data["pf_loop_time"][i]
             except KeyError:
                 self.pf_loop_time=self.Obs_start_time
- 
+
         if not legacy:
             #read datetimes csv file (can just restore the pickle file otherwise. Build this into OCFlare class):
             if not filename:
-                filename= '/Users/wheatley/Documents/Solar/occulted_flares/flare_lists/'+str(ID)+'OCDatetimes.csv'#default file to read
+                filename= '/Users/wheatley/Documents/Solar/occulted_flares/objects/'+str(ID)+'OCDatetimes.csv'#default file to read
             import pandas as pd
             data=pd.read_csv(filename,sep=',', header=0) #column 0 will be NaN because it's text
             i=self.get_index(ID,data) #get the index of the flare if it's in a list
@@ -79,6 +79,10 @@ class OCDatetimes(object):
 
         self.convert2datetime()
         #update the OCFiles object with the file used to generate this instance of the object
+        if calc_times:
+            #self.convert2datetime() #in case it doesn't work the first time?
+            self.calc_times(i)
+            self.read_loop_time()
         
     def __iter__(self):
         '''Returns a generator that iterates over the object - not sure if it's needed here but whatever'''
@@ -89,11 +93,12 @@ class OCDatetimes(object):
         '''Write object to pickle'''
         import pickle
         if not picklename:
-            picklename=str(self.ID)+'OCDatetimes.p'
+            picklename='/Users/wheatley/Documents/Solar/occulted_flares/objects/'+str(self.ID)+'OCDatetimes.p'
         pickle.dump(self, open(picklename, 'wb'))
 
-    def write_csv(self, csvname=False):
-        if not csvname: csvname= str(ID) + 'OCDatetimes.csv'
+    def write_csv(self, csvname=False): #do I need to convert2string first?
+        import csv
+        if not csvname: csvname='/Users/wheatley/Documents/Solar/occulted_flares/objects/'+ str(ID) + 'OCDatetimes.csv'
         d=self.__dict__
         with open(csvname,'wb') as f:
             w=csv.writer(f)
@@ -104,6 +109,31 @@ class OCDatetimes(object):
         '''Write object to pickle'''
         i= np.where(ID == data['ID'])
         return i[0][0]
+
+    def calc_times(self,i):
+        '''Calculate lc and spec times based on parameters I had in the original lightcurves.py and spectrograms.py'''
+        import lightcurves as lc #should I read it straight from the data files? perhaps this is safest...
+        data,ebins=lc.import_spectrogram('/Users/wheatley/Documents/Solar/occulted_flares/data/rerun_sgrams.sav')
+        last=int(data['len'][0]-1)
+        self.lc_start_time= dt.strptime(data['UT'][i][0],'%d-%b-%Y %H:%M:%S.000') #let's hope everything has the same index....
+        try:
+            self.lc_end_time= dt.strptime(data['UT'][i][last],'%d-%b-%Y %H:%M:%S.000') 
+        except ValueError:
+            import datetime
+            self.lc_end_time = start + datetime.timedelta(seconds=time_axis[-1])
+        self.spec_start_time=self.lc_start_time
+        self.spec_end_time=self.lc_end_time
+        
+    def read_loop_time(self):
+        '''Read map.time from STEREO fits files used to do the loop tracing'''
+        #find the correct file
+        fdir='/Users/wheatley/Documents/Solar/occulted_flares/data/stereo_pfloops/'
+        fname= dt.strftime(self.Messenger_peak,'%Y%m%d')#format the datetime correctly
+        ffile=glob.glob(fdir+fname+'*.fts')
+        #open it in IDL? or can read a fits file in Python... probably. should be in the header info one would hope
+        from sunpy import io as sio
+        head=sio.fits.get_header(ffile[0])
+        self.pf_loop_time = dt.strptime(head[0]['DATE-OBS'].replace('T',' ')[:-3]+'000','%Y-%m-%d %H:%M:%S.000')#convert to datetime
     
     def convert2datetime(self):
         '''If it's a string make it a datetime'''

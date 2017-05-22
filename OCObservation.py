@@ -25,7 +25,7 @@ class OCObservation(object):
             Slos: Stereo line of sight
             AIAwave:AIA wavelength(s)
             Notes'''
-    def __init__(self, ID, legacy=True):
+    def __init__(self, ID, legacy=True,filename=False):
         '''Return an empty Data_Study object, unless a filename to a correctly formatted csv is given. Do I need to be able to go from a dictionary to an object too?'''
         tags=['CLEAN','Rcountrate','Mcountrate','Rpflux','Mpflux','Rebins','Mebins','Swave','Slos','AIAwave']
         if legacy: #get info from legacy OCData object and the associated csv/sav files
@@ -35,10 +35,10 @@ class OCObservation(object):
             data=pd.read_csv(filename,sep=',', header=0) #column 0 will be NaN because it's text
             i=self.get_index(ID,data) #get the index of the flare if it's in a list
             self.Angle=data["Angle"][i]
-            self.Det=data["Flare_Properties"]['good_det'][i]
-            self.STEREO=data["Datetimes"]['RHESSI_datetimes'][i]
+            self.Det=data['good_det'][i]
+            self.STEREO=data['RHESSI_datetimes'][i]
             for att,key in zip(tags,tags):
-                self.setattr(att,'')
+                setattr(self,att,'')
  
         if not legacy:
             #read attributes from csv file (can just restore the pickle file otherwise. Build this into OCFlare class):
@@ -48,7 +48,7 @@ class OCObservation(object):
             data=pd.read_csv(filename,sep=',', header=0) #column 0 will be NaN because it's text
             i=self.get_index(ID,data) #get the index of the flare if it's in a list
             for att,key in zip(tags,tags):
-                self.setattr(att,data[key])
+                setattr(self,att,data[key])
 
         #set some defaults
         if self.Rebins == '': self.Rebins=[[],[],[],[],[],[]]
@@ -73,7 +73,7 @@ class OCObservation(object):
     def write_csv(self, csvname=False): #might not flatten the dictionaries correctly
         if not csvname: csvname= str(ID) + 'OCObservation.csv'
         d=self.__dict__
-        with open(csvname,'wb') as f:
-            w=csv.writer(f)
-            w.writerow(d.keys())
-            w.writerow(d.values())
+        #import pandas as pd
+        #df = pd.io.json.json_normalize(d)
+        #df.to_dict(orient='records')
+        #use pandas to write csv

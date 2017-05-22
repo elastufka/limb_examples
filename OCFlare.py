@@ -1,16 +1,17 @@
  #######################################
-# OC.Flarepy
+# OC.Flare.py
 # Erica Lastufka 17/5/17 
 
 #Description: Class of functions to deal with all data,files,calculations of the study
 #######################################
 
 import numpy as np
+import glob
+
 import OCDatetimes as ocd
 import OCFiles as ocf
 import OCProperties as ocp
 import OCObservation as oco
-import OCCalc as occ
 
 class OCFlare(object):
     ''' Object will have the following attributes:
@@ -20,16 +21,16 @@ class OCFlare(object):
             Data: OCData object (different from original) that contains methods for loading/accessing the data ->tag this onto Files?
             Properties: OCProperties object that contains all information about the flare itself
             Observation:OCObservation object that contains all information about the observations
-            Calculations:OCCalc object that contains methods for and attributes of calculations
             Notes
         Methods will include:
             Method for translating between pickle, .sav and .csv
+        A list of OCFlare objects will comprise an OCFlareList object, which will include all the plotting methods
      '''
-    def __init__(self, ID, legacy=True):
+    def __init__(self, ID, legacy=True, calc_times=False, calc_missing=False,gen=False):
         '''Initialize the flare object from an ID, pickle files in given folder, or legacy .csv or .sav'''
         self.ID=ID
         #first see if we can just restore the objects from pickles...
-        pickles=sorted(glob.glob(str(ID)+'*.p')):
+        pickles=sorted(glob.glob(str(ID)+'*.p')) #might want to make a special directory for these
         if pickles:
             for p in pickles:
                 if p == str(ID)+'.p':
@@ -47,21 +48,15 @@ class OCFlare(object):
                     self.Files=pickle.load(open(p,'rb'))
                 else:
                     self.Files=ocf.OCFiles(ID,legacy=legacy)
-                 if p.endswith('OCObservations.p'):
+                if p.endswith('OCObservations.p'):
                     self.Observations=pickle.load(open(p,'rb'))
                 else:
-                    self.Observations=oco.OCObservations(ID,legacy=legacy)
-                if p.endswith('OCCalc.p'):
-                    self.CCalc=pickle.load(open(p,'rb'))
-                else:
-                    self.CCalcDatetime=occ.OCCalc(ID,legacy=legacy)
-                               
+                    self.Observations=oco.OCObservations(ID,legacy=legacy)                               
         else:
-            self.Datetimes=ocd.OCDatetimes(ID,legacy=legacy)
-            self.Properties=ocp.OCProperties(ID,legacy=legacy)
+            self.Datetimes=ocd.OCDatetimes(ID,legacy=legacy,calc_times=calc_times)
+            self.Properties=ocp.OCProperties(ID,legacy=legacy,calc_missing=calc_missing)
             self.Files=ocf.OCFiles(ID,legacy=legacy)
             self.Observation=oco.OCObservation(ID,legacy=legacy)
-            self.Calc=occ.OCCalc(ID,legacy=legacy)
             self.Notes= [""]
         
                 
@@ -141,9 +136,14 @@ class OCFlare(object):
         idl('flare_list={ID:foo.field01,Datetimes:{Messenger_datetimes:foo.field02,RHESSI_datetimes:foo.field03,Obs_start_time:foo.field04,Obs_end_time:foo.field05},Flare_properties:{Messenger_T:foo.field06,Messenger_EM1:foo.field07,Messenger_GOES:foo.field08,Messenger_total_counts:foo.field09,RHESSI_GOES:foo.field10,GOES_GOES:foo.field11,RHESSI_total_counts:foo.field12,Location:foo.field13,source_vis:foo.field14},Data_properties:{Messenger_data_path:foo.field15,RHESSI_data_path:foo.field16,XRS_files:foo.field17,QL_images:foo.field18,RHESSI_browser_urls:foo.field19,csv_name:foo.field20,good_det:foo.field21},Angle:foo.field22,Notes:foo.field23}') 
         idl('save,flare_list, filename=savname')
 
-    def export2pickle(self, picklename):
-        '''Replaces save_flare_list. Saves the data object in a .p file'''
+    def export2pickle(self, picklename, all=False):
+        '''Replaces save_flare_list. Saves the data object in a .p file. Option to pickle all the individual objects as well.'''
         import pickle
         pickle.dump(self, open(picklename, 'wb'))
+        if all:
+            self.Datetimes.write()
+            self.Properties.write()
+            self.Observation.write()
+            self.Files.write()
 
 
