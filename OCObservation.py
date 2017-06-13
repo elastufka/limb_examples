@@ -24,13 +24,14 @@ class OCObservation(object):
             Swave: Stereo wavelength
             Slos: Stereo line of sight
             AIAwave:AIA wavelength(s)
-            Notes'''
+            Notes
+        Methods: 
+            Calculate photon flux rates? TBD'''
     def __init__(self, ID, legacy=True,filename=False):
         '''Return an empty Data_Study object, unless a filename to a correctly formatted csv is given. Do I need to be able to go from a dictionary to an object too?'''
         tags=['CLEAN','Rcountrate','Mcountrate','Rpflux','Mpflux','Rebins','Mebins','Swave','Slos','AIAwave']
         if legacy: #get info from legacy OCData object and the associated csv/sav files
-            if not filename:
-                filename= '/Users/wheatley/Documents/Solar/occulted_flares/flare_lists/list_final.csv'#default file to read
+            if not filename: filename= '/Users/wheatley/Documents/Solar/occulted_flares/flare_lists/list_final.csv'#default file to read
             import pandas as pd
             data=pd.read_csv(filename,sep=',', header=0) #column 0 will be NaN because it's text
             i=self.get_index(ID,data) #get the index of the flare if it's in a list
@@ -42,8 +43,7 @@ class OCObservation(object):
  
         if not legacy:
             #read attributes from csv file (can just restore the pickle file otherwise. Build this into OCFlare class):
-            if not filename:
-                filename= '/Users/wheatley/Documents/Solar/occulted_flares/flare_lists/'+str(ID)+'OCObservation.csv'#default file to read - need an except in case it doesn't exist
+            if not filename: filename= '/Users/wheatley/Documents/Solar/occulted_flares/data/objects/'+str(ID)+'OCObservation.csv'#default file to read - need an except in case it doesn't exist
             import pandas as pd
             data=pd.read_csv(filename,sep=',', header=0) #column 0 will be NaN because it's text
             i=self.get_index(ID,data) #get the index of the flare if it's in a list
@@ -66,14 +66,12 @@ class OCObservation(object):
     def write(self, picklename=False):
         '''Write object to pickle'''
         import pickle
-        if not picklename:
-            picklename=str(self.ID)+'OCObservation.p'
+        if not picklename: picklename='/Users/wheatley/Documents/Solar/occulted_flares/data/objects/'+str(self.ID)+'OCObservation.p'
         pickle.dump(self, open(picklename, 'wb'))
 
     def write_csv(self, csvname=False): #might not flatten the dictionaries correctly
-        if not csvname: csvname= str(ID) + 'OCObservation.csv'
+        if not csvname: csvname='/Users/wheatley/Documents/Solar/occulted_flares/data/objects/'+ str(ID) + 'OCObservation.csv'
         d=self.__dict__
-        #import pandas as pd
-        #df = pd.io.json.json_normalize(d)
-        #df.to_dict(orient='records')
-        #use pandas to write csv
+        import pandas as pd
+        pd.io.json.json_normalize(d).to_csv(csvname)
+

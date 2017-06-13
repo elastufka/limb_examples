@@ -33,7 +33,7 @@ class OCFiles(object):
             import pandas as pd
             data=pd.read_csv(filename,sep=',', header=0) #column 0 will be NaN because it's text
             i=self.get_index(ID,data) #get the index of the flare if it's in a list
-            self.Raw={'xrs_files':data["XRS_files"][i],'aia':'','stereo':'','RHESSI':'','ospex':'','e1':'','e2':'','e3':'','e4':'','e5':''}
+            self.Raw={'xrs_files':data["XRS_files"][i],'aia':'','stereo':'','RHESSI':'','ospex':'','spectrogram':'','e2':'','e3':'','e4':'','e5':''}
             self.Lists={'flare_list':data["csv_name"][i]}
             self.Plots={} #all the locations/naming conventions for the plots?
 
@@ -44,7 +44,7 @@ class OCFiles(object):
             import pandas as pd
             data=pd.read_csv(filename,sep=',', header=0) #column 0 will be NaN because it's text
             i=self.get_index(ID,data) #get the index of the flare if it's in a list
-            self.Raw={'xrs_files':data['Raw']["xrs_files"][i],'aia':data['Raw']["xrs_files"][i],'stereo':data['Raw']["xrs_files"][i],'RHESSI':data['Raw']["xrs_files"][i],'ospex':'','e1':'','e2':'','e3':'','e4':'','e5':''}
+            self.Raw={'xrs_files':data['Raw']["xrs_files"][i],'aia':data['Raw']["xrs_files"][i],'stereo':data['Raw']["xrs_files"][i],'RHESSI':data['Raw']["xrs_files"][i],'ospex':'','spectrogram':'','e2':'','e3':'','e4':'','e5':''}
             self.Lists={'flare_list':data["csv_name"][i]}
             self.Plots={} #all the locations/naming conventions for the plots?
 

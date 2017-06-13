@@ -23,6 +23,8 @@ class OCDatetimes(object):
             lc_start_time
             lc_end_time
             pf_loop_time
+            stereo_start_time
+            stereo_times
          Methods are:
             format_datetimes() to format for reading from/exporting to csv/sav
             extend_time_int() does the time interval extensions
@@ -59,6 +61,14 @@ class OCDatetimes(object):
                 self.pf_loop_time=data["pf_loop_time"][i]
             except KeyError:
                 self.pf_loop_time=self.Obs_start_time
+            try:                
+                self.stereo_start_time=data["stereo_start_time"][i]
+            except KeyError:
+                self.stereo_start_time=self.Obs_start_time
+            try:                
+                self.stereo_times=data["stereo_times"][i]
+            except KeyError:
+                self.stereo_times=[self.Obs_start_time,self.Obs_end_time]
 
         if not legacy:
             #read datetimes csv file (can just restore the pickle file otherwise. Build this into OCFlare class):
@@ -76,6 +86,8 @@ class OCDatetimes(object):
             self.lc_start_time=data["lc_start_time"][i]
             self.lc_end_time=data["lc_end_time"][i]
             self.pf_loop_time=data["pf_loop_time"][i]
+            self.stereo_start_time=data["stereo_start_time"][i]
+            self.stereo_times=data["stereo_times"][i]
 
         self.convert2datetime()
         #update the OCFiles object with the file used to generate this instance of the object
@@ -83,6 +95,7 @@ class OCDatetimes(object):
             #self.convert2datetime() #in case it doesn't work the first time?
             self.calc_times(i)
             self.read_loop_time()
+            self.read_stereo_times()
         
     def __iter__(self):
         '''Returns a generator that iterates over the object - not sure if it's needed here but whatever'''
@@ -123,13 +136,29 @@ class OCDatetimes(object):
             self.lc_end_time = start + datetime.timedelta(seconds=time_axis[-1])
         self.spec_start_time=self.lc_start_time
         self.spec_end_time=self.lc_end_time
+        self.spec_end_time=self.lc_end_time
+
+    def read_stereo_times(self):
+        '''Read map.time from all STEREO fits files '''
+        fdir='/Users/wheatley/Documents/Solar/occulted_flares/data/stereo_pfloops/'
+        fname= dt.strftime(self.Messenger_peak,'%Y%m%d')
+        ffiles=glob.glob(fdir+fname+'*.fts')
+        #open it in IDL? or can read a fits file in Python... probably. should be in the header info one would hope
+        from sunpy import io as sio
+        try:
+            for f in ffiles:
+                head=sio.fits.get_header(f)
+                self.stereo_times.append(dt.strptime(head[0]['DATE-OBS'].replace('T',' ')[:-3]+'000','%Y-%m-%d %H:%M:%S.000'))#convert to datetime
+        except IndexError:
+            self.stereo_times=[]
         
-    def read_loop_time(self):
-        '''Read map.time from STEREO fits files used to do the loop tracing'''
+    def read_loop_time(self,filename=False):
+        '''Read map.time from STEREO fits files used to do the loop tracing. filename can be set using the OCFiles object'''
         #find the correct file
         fdir='/Users/wheatley/Documents/Solar/occulted_flares/data/stereo_pfloops/'
         fname= dt.strftime(self.Messenger_peak,'%Y%m%d')#format the datetime correctly
-        ffile=glob.glob(fdir+fname+'*.fts')
+        if not filename: filename=glob.glob(fdir+fname+'*.fts')
+        ffile=filename
         #open it in IDL? or can read a fits file in Python... probably. should be in the header info one would hope
         from sunpy import io as sio
         head=sio.fits.get_header(ffile[0])

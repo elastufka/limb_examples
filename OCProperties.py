@@ -18,6 +18,7 @@ class OCProperties(object):
             Messenger_GOES: Same for Messenger
             source_vis:
             source_pos:
+            source_pos_disk: source position projected down onto disk if necessary
             source_pos_STEREO: 
             f1pos: in case this is different than what is used in the loops?
             f2pos:  
@@ -41,7 +42,7 @@ class OCProperties(object):
     
     def __init__(self, ID, legacy=True, filename=False,calc_missing=True):
         '''Return an empty Data_Study object, unless a filename to a correctly formatted csv is given. Do I need to be able to go from a dictionary to an object too?'''
-        tags=['T2','EM2','chisq','source_pos_STEREO','f1pos','f2pos','loop','Rheight','occ_percent','e1','e2','e3','e4','e5','e6','e7','e8','e9','e10']
+        tags=['T2','EM2','chisq','source_pos_STEREO','f1pos','f2pos','loop','Rheight','occ_percent','source_pos_disk','e2','e3','e4','e5','e6','e7','e8','e9','e10']
         if legacy: #get info from legacy OCData object and the associated csv/sav files
             if not filename:
                 filename= '/Users/wheatley/Documents/Solar/occulted_flares/flare_lists/list_final.csv'#default file to read
@@ -95,6 +96,8 @@ class OCProperties(object):
         #replace , in source_pos and source_pos_stereo with ;
         if ',' in self.source_pos:
             self.source_pos.replace(',',';')
+        if ',' in self.source_pos_disk:
+            self.source_pos_disk.replace(',',';')
         if ',' in self.source_pos_STEREO:
             self.source_pos_STEREO.replace(',',';')
         
@@ -128,7 +131,7 @@ class OCProperties(object):
         i = np.where(data['ID'].values == ID)[0][0]#the index of the right flare
         #do some formatting of the data before placing it into the dictionary...
         def format_fp(fstr):
-            if fstr=='':
+            if fstr=='' or type(fstr) != str:
                 return fstr
             arr=fstr.split(' ')
             newarr=[]
@@ -147,7 +150,7 @@ class OCProperties(object):
         fp2=format_fp(data['Footpoints2'][i])
         
         def format_coords(cstr):
-            if cstr=='':
+            if cstr=='' or type(cstr) != str:
                 return cstr
             coords=[float(cstr[cstr.find('[')+1:cstr.find(';')]),float(cstr[cstr.find(';')+1:cstr.find(']')])]
             return coords
